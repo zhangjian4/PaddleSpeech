@@ -11,11 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
+import io
+import re
 import sys
 import traceback
 from typing import Union
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 
 from paddlespeech.cli.log import logger
@@ -49,6 +52,97 @@ def help():
             "audio": "the base64 of audio"
         }
     }
+    return response
+
+
+@router.get("/paddlespeech/tts")
+def tts_get(text: str,
+            spk_id: int = 0,
+            speed: float = 1.0,
+            volume: float = 1.0,
+            sample_rate: int = 0,
+            save_path: str = None,
+            range: Union[str, None] = Header(default=None),
+            ):
+    # Check parameters
+    if speed <= 0 or speed > 3:
+        return failed_response(
+            ErrorCode.SERVER_PARAM_ERR,
+            "invalid speed value, the value should be between 0 and 3.")
+    if volume <= 0 or volume > 3:
+        return failed_response(
+            ErrorCode.SERVER_PARAM_ERR,
+            "invalid volume value, the value should be between 0 and 3.")
+    if sample_rate not in [0, 16000, 8000]:
+        return failed_response(
+            ErrorCode.SERVER_PARAM_ERR,
+            "invalid sample_rate value, the choice of value is 0, 8000, 16000.")
+    if save_path is not None and not save_path.endswith(
+            "pcm") and not save_path.endswith("wav"):
+        return failed_response(
+            ErrorCode.SERVER_PARAM_ERR,
+            "invalid save_path, saved audio formats support pcm and wav")
+
+    # run
+    try:
+        engine_pool = get_engine_pool()
+        tts_engine = engine_pool['tts']
+        logger.info("Get tts engine successfully.")
+
+        if tts_engine.engine_type == "python":
+            from paddlespeech.server.engine.tts.python.tts_engine import PaddleTTSConnectionHandler
+        elif tts_engine.engine_type == "inference":
+            from paddlespeech.server.engine.tts.paddleinference.tts_engine import PaddleTTSConnectionHandler
+        else:
+            logger.error("Offline tts engine only support python or inference.")
+            sys.exit(-1)
+
+        connection_handler = PaddleTTSConnectionHandler(tts_engine)
+        lang, target_sample_rate, duration, wav_base64 = connection_handler.run(
+            text, spk_id, speed, volume, sample_rate, save_path)
+        data_bytes = base64.b64decode(wav_base64)
+        size = len(data_bytes)
+        status_code = 200
+        headers = {}
+        if range:
+            HTTP_RANGE_HEADER = re.compile(r'bytes=([0-9]+)\-(([0-9]+)?)')
+            m = re.match(HTTP_RANGE_HEADER, range)
+            if m:
+                start_str = m.group(1)
+                start = int(start_str)
+                end_str = m.group(2)
+                end = -1
+                # end存在
+                if len(end_str) > 0:
+                    end = int(end_str)
+                # range存在时，让请求支持断点续传,status_code改为206
+                status_code = 206
+                if end == -1:
+                    # 此处的size是文件大小
+                    headers["Content-Length"] = str(size - start)
+                else:
+                    # Content-Length也要改变
+                    headers["Content-Length"] = str(end - start + 1)
+                headers["Accept-Ranges"] = "bytes"
+                if end < 0:
+                    content_range_header_value = "bytes %d-%d/%d" % (
+                        start, size - 1, size)
+                    data_bytes = data_bytes[start:]
+                else:
+                    content_range_header_value = "bytes %d-%d/%d" % (
+                        start, end, size)
+                    data_bytes = data_bytes[start:end + 1]
+                headers["Content-Range"] = content_range_header_value
+                headers["Connection"] = "keep-alive"
+        buf = io.BytesIO(data_bytes)
+        response = StreamingResponse(
+            buf, status_code=status_code, headers=headers, media_type="audio/wav")
+    except ServerBaseException as e:
+        response = failed_response(e.error_code, e.msg)
+    except BaseException:
+        response = failed_response(ErrorCode.SERVER_UNKOWN_ERR)
+        traceback.print_exc()
+
     return response
 
 
