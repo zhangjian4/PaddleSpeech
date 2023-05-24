@@ -20,14 +20,15 @@ import yaml
 from timer import timer
 from yacs.config import CfgNode
 
+from paddlespeech.t2s.exps.syn_utils import am_to_static
 from paddlespeech.t2s.exps.syn_utils import get_frontend
 from paddlespeech.t2s.exps.syn_utils import get_sentences
 from paddlespeech.t2s.models.vits import VITS
+from paddlespeech.t2s.models.vits import VITSInference
 from paddlespeech.t2s.utils import str2bool
 
 
 def evaluate(args):
-
     # Init body.
     with open(args.config) as f:
         config = CfgNode(yaml.safe_load(f))
@@ -41,6 +42,19 @@ def evaluate(args):
 
     # frontend
     frontend = get_frontend(lang=args.lang, phones_dict=args.phones_dict)
+    # acoustic model
+    am_name = args.am[:args.am.rindex('_')]
+    am_dataset = args.am[args.am.rindex('_') + 1:]
+
+    spk_num = None
+    if args.speaker_dict is not None:
+        print("multiple speaker vits!")
+        with open(args.speaker_dict, 'rt') as f:
+            spk_id = [line.strip().split() for line in f.readlines()]
+        spk_num = len(spk_id)
+    else:
+        print("single speaker vits!")
+    print("spk_num:", spk_num)
 
     with open(args.phones_dict, "r") as f:
         phn_id = [line.strip().split() for line in f.readlines()]
@@ -48,10 +62,20 @@ def evaluate(args):
     print("vocab_size:", vocab_size)
 
     odim = config.n_fft // 2 + 1
+    config["model"]["generator_params"]["spks"] = spk_num
 
     vits = VITS(idim=vocab_size, odim=odim, **config["model"])
     vits.set_state_dict(paddle.load(args.ckpt)["main_params"])
     vits.eval()
+
+    vits_inference = VITSInference(vits)
+    # whether dygraph to static
+    if args.inference_dir:
+        vits_inference = am_to_static(
+            am_inference=vits_inference,
+            am=args.am,
+            inference_dir=args.inference_dir,
+            speaker_dict=args.speaker_dict)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -78,8 +102,13 @@ def evaluate(args):
                 flags = 0
                 for i in range(len(phone_ids)):
                     part_phone_ids = phone_ids[i]
-                    out = vits.inference(text=part_phone_ids)
-                    wav = out["wav"]
+                    spk_id = None
+                    if am_dataset in {"aishell3",
+                                      "vctk"} and spk_num is not None:
+                        spk_id = paddle.to_tensor(args.spk_id)
+                        wav = vits_inference(part_phone_ids, spk_id)
+                    else:
+                        wav = vits_inference(part_phone_ids)
                     if flags == 0:
                         wav_all = wav
                         flags = 1
@@ -109,6 +138,13 @@ def parse_args():
         '--ckpt', type=str, default=None, help='Checkpoint file of VITS.')
     parser.add_argument(
         "--phones_dict", type=str, default=None, help="phone vocabulary file.")
+    parser.add_argument(
+        "--speaker_dict", type=str, default=None, help="speaker id map file.")
+    parser.add_argument(
+        '--spk_id',
+        type=int,
+        default=0,
+        help='spk id for multi speaker acoustic model')
     # other
     parser.add_argument(
         '--lang',
@@ -134,6 +170,11 @@ def parse_args():
         type=str2bool,
         default=True,
         help="whether to add blank between phones")
+    parser.add_argument(
+        '--am',
+        type=str,
+        default='vits_csmsc',
+        help='Choose acoustic model type of tts task.')
 
     args = parser.parse_args()
     return args

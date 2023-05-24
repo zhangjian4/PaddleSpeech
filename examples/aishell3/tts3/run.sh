@@ -43,10 +43,7 @@ fi
 
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     # install paddle2onnx
-    version=$(echo `pip list |grep "paddle2onnx"` |awk -F" " '{print $2}')
-    if [[ -z "$version" || ${version} != '0.9.8' ]]; then
-        pip install paddle2onnx==0.9.8
-    fi
+    pip install paddle2onnx --upgrade
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx fastspeech2_aishell3
     # considering the balance between speed and quality, we recommend that you use hifigan as vocoder
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx pwgan_aishell3
@@ -54,7 +51,17 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     
 fi
 
-# inference with onnxruntime, use fastspeech2 + hifigan by default
+# inference with onnxruntime, use fastspeech2 + pwgan by default
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     ./local/ort_predict.sh ${train_output_path}
+fi
+
+if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+    ./local/export2lite.sh ${train_output_path} inference pdlite fastspeech2_aishell3 x86
+    ./local/export2lite.sh ${train_output_path} inference pdlite pwgan_aishell3 x86
+    # ./local/export2lite.sh ${train_output_path} inference pdlite hifigan_aishell3 x86
+fi
+
+if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/lite_predict.sh ${train_output_path} || exit -1
 fi

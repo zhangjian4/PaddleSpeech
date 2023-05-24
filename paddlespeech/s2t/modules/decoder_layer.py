@@ -114,18 +114,15 @@ class DecoderLayer(nn.Layer):
             ], f"{cache.shape} == {[tgt.shape[0], tgt.shape[1] - 1, self.size]}"
             tgt_q = tgt[:, -1:, :]
             residual = residual[:, -1:, :]
-            # TODO(Hui Zhang): slice not support bool type
-            # tgt_q_mask = tgt_mask[:, -1:, :]
-            tgt_q_mask = tgt_mask.cast(paddle.int64)[:, -1:, :].cast(
-                paddle.bool)
+            tgt_q_mask = tgt_mask[:, -1:, :]
 
         if self.concat_after:
             tgt_concat = paddle.cat(
-                (tgt_q, self.self_attn(tgt_q, tgt, tgt, tgt_q_mask)), dim=-1)
+                (tgt_q, self.self_attn(tgt_q, tgt, tgt, tgt_q_mask)[0]), dim=-1)
             x = residual + self.concat_linear1(tgt_concat)
         else:
             x = residual + self.dropout(
-                self.self_attn(tgt_q, tgt, tgt, tgt_q_mask))
+                self.self_attn(tgt_q, tgt, tgt, tgt_q_mask)[0])
         if not self.normalize_before:
             x = self.norm1(x)
 
@@ -134,11 +131,11 @@ class DecoderLayer(nn.Layer):
             x = self.norm2(x)
         if self.concat_after:
             x_concat = paddle.cat(
-                (x, self.src_attn(x, memory, memory, memory_mask)), dim=-1)
+                (x, self.src_attn(x, memory, memory, memory_mask)[0]), dim=-1)
             x = residual + self.concat_linear2(x_concat)
         else:
             x = residual + self.dropout(
-                self.src_attn(x, memory, memory, memory_mask))
+                self.src_attn(x, memory, memory, memory_mask)[0])
         if not self.normalize_before:
             x = self.norm2(x)
 

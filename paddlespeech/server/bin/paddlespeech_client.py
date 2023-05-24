@@ -550,11 +550,9 @@ class CLSClientExecutor(BaseExecutor):
         """
         Python API to call an executor.
         """
-
         url = 'http://' + server_ip + ":" + str(port) + '/paddlespeech/cls'
         audio = wav2base64(input)
         data = {"audio": audio, "topk": topk}
-
         res = requests.post(url=url, data=json.dumps(data))
         return res
 
@@ -679,6 +677,7 @@ class VectorClientExecutor(BaseExecutor):
                 test_audio=args.test,
                 task=task)
             time_end = time.time()
+            logger.info(res.json())
             logger.info("Response time %f s." % (time_end - time_start))
             return True
         except Exception as e:
@@ -727,7 +726,6 @@ class VectorClientExecutor(BaseExecutor):
             handler = VectorScoreHttpHandler(server_ip=server_ip, port=port)
             res = handler.run(enroll_audio, test_audio, audio_format,
                               sample_rate)
-            logger.info(f"The vector score is: {res}")
             return res
         else:
             logger.error(f"Sorry, we have not support such task {task}")

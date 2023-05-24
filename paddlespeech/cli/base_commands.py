@@ -14,6 +14,7 @@
 import argparse
 from typing import List
 
+import numpy
 from prettytable import PrettyTable
 
 from ..resource import CommonTaskResource
@@ -78,12 +79,14 @@ class VersionCommand:
 
 
 model_name_format = {
-    'asr': 'Model-Language-Sample Rate',
+    'asr': 'Model-Size-Code Switch-Multilingual-Language-Sample Rate',
     'cls': 'Model-Sample Rate',
     'st': 'Model-Source language-Target language',
     'text': 'Model-Task-Language',
     'tts': 'Model-Language',
-    'vector': 'Model-Sample Rate'
+    'vector': 'Model-Sample Rate',
+    'ssl': 'Model-Language-Sample Rate',
+    'whisper': 'Model-Language-Sample Rate'
 }
 
 
@@ -94,7 +97,9 @@ class StatsCommand:
     def __init__(self):
         self.parser = argparse.ArgumentParser(
             prog='paddlespeech.stats', add_help=True)
-        self.task_choices = ['asr', 'cls', 'st', 'text', 'tts', 'vector', 'kws']
+        self.task_choices = [
+            'asr', 'cls', 'st', 'text', 'tts', 'vector', 'kws', 'ssl', 'whisper'
+        ]
         self.parser.add_argument(
             '--task',
             type=str,
@@ -107,7 +112,21 @@ class StatsCommand:
         fields = model_name_format[self.task].split("-")
         table = PrettyTable(fields)
         for key in pretrained_models:
-            table.add_row(key.split("-"))
+            line = key.split("-")
+            if self.task == "asr" and len(line) < len(fields):
+                for i in range(len(line), len(fields)):
+                    line.append("-")
+                if "codeswitch" in key:
+                    line[3], line[1] = line[1].split("_")[0], line[1].split(
+                        "_")[1:]
+                elif "multilingual" in key:
+                    line[4], line[1] = line[1].split("_")[0], line[1].split(
+                        "_")[1:]
+                tmp = numpy.array(line)
+                idx = [0, 5, 3, 4, 1, 2]
+                line = tmp[idx]
+            table.add_row(line)
+
         print(table)
 
     def execute(self, argv: List[str]) -> bool:
@@ -125,9 +144,11 @@ class StatsCommand:
                 "Here is the list of {} pretrained models released by PaddleSpeech that can be used by command line and python API"
                 .format(self.task.upper()))
             self.show_support_models(pretrained_models)
+            return True
         except BaseException:
             print("Failed to get the list of {} pretrained models.".format(
                 self.task.upper()))
+            return False
 
 
 # Dynamic import when running specific command
@@ -139,6 +160,12 @@ _commands = {
     'tts': ['Text to Speech infer command.', 'TTSExecutor'],
     'vector': ['Speech to vector embedding infer command.', 'VectorExecutor'],
     'kws': ['Keyword Spotting infer command.', 'KWSExecutor'],
+    'ssl':
+    ['Self-Supervised Learning Pretrained model infer command.', 'SSLExecutor'],
+    'whisper': [
+        'Whisper model for speech to text or translate speech to English.',
+        'WhisperExecutor'
+    ]
 }
 
 for com, info in _commands.items():

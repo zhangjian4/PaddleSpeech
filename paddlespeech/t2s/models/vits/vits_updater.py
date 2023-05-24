@@ -111,6 +111,8 @@ class VITSUpdater(StandardUpdater):
                 text_lengths=batch["text_lengths"],
                 feats=batch["feats"],
                 feats_lengths=batch["feats_lengths"],
+                sids=batch.get("spk_id", None),
+                spembs=batch.get("spk_emb", None),
                 forward_generator=turn == "generator")
             # Generator
             if turn == "generator":
@@ -164,7 +166,9 @@ class VITSUpdater(StandardUpdater):
                 gen_loss.backward()
 
                 self.optimizer_g.step()
-                self.scheduler_g.step()
+                # learning rate updates on each epoch.
+                if self.state.iteration % self.updates_per_epoch == 0:
+                    self.scheduler_g.step()
 
                 # reset cache
                 if self.model.reuse_cache_gen or not self.model.training:
@@ -200,7 +204,9 @@ class VITSUpdater(StandardUpdater):
                 dis_loss.backward()
 
                 self.optimizer_d.step()
-                self.scheduler_d.step()
+                # learning rate updates on each epoch.
+                if self.state.iteration % self.updates_per_epoch == 0:
+                    self.scheduler_d.step()
 
                 # reset cache
                 if self.model.reuse_cache_dis or not self.model.training:
@@ -268,6 +274,8 @@ class VITSEvaluator(StandardEvaluator):
                 text_lengths=batch["text_lengths"],
                 feats=batch["feats"],
                 feats_lengths=batch["feats_lengths"],
+                sids=batch.get("spk_id", None),
+                spembs=batch.get("spk_emb", None),
                 forward_generator=turn == "generator")
             # Generator
             if turn == "generator":

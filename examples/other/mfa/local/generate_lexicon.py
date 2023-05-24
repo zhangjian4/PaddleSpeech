@@ -48,7 +48,7 @@ def rule(C, V, R, T):
     
     'i' is distinguished when appeared in phonemes, and separated into 3 categories, 'i', 'ii' and 'iii'.
 
-    Erhua is is possibly applied to every finals, except for finals that already ends with 'r'.
+    Erhua is possibly applied to every finals, except for finals that already ends with 'r'.
 
     When a syllable is impossible or does not have any characters with this pronunciation, return None
     to filter it out.
@@ -182,12 +182,17 @@ if __name__ == "__main__":
         "--with-tone", action="store_true", help="whether to consider tone.")
     parser.add_argument(
         "--with-r", action="store_true", help="whether to consider erhua.")
+    parser.add_argument(
+        "--rhy-with-duration",
+        action="store_true", )
     args = parser.parse_args()
 
     lexicon = generate_lexicon(args.with_tone, args.with_r)
     symbols = generate_symbols(lexicon)
 
     with open(args.output + ".lexicon", 'wt') as f:
+        if args.rhy_with_duration:
+            f.write("sp1 sp1\nsp2 sp2\nsp3 sp3\nsp4 sp4\n")
         for k, v in lexicon.items():
             f.write(f"{k} {v}\n")
 

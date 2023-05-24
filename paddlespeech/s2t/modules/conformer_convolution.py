@@ -14,11 +14,11 @@
 # limitations under the License.
 # Modified from wenet(https://github.com/wenet-e2e/wenet)
 """ConvolutionModule definition."""
-from typing import Optional
 from typing import Tuple
 
 import paddle
 from paddle import nn
+from paddle.nn import initializer as I
 from typeguard import check_argument_types
 
 from paddlespeech.s2t.modules.align import BatchNorm1D
@@ -40,7 +40,9 @@ class ConvolutionModule(nn.Layer):
                  activation: nn.Layer=nn.ReLU(),
                  norm: str="batch_norm",
                  causal: bool=False,
-                 bias: bool=True):
+                 bias: bool=True,
+                 adaptive_scale: bool=False,
+                 init_weights: bool=False):
         """Construct an ConvolutionModule object.
         Args:
             channels (int): The number of channels of conv layers.
@@ -52,6 +54,18 @@ class ConvolutionModule(nn.Layer):
         """
         assert check_argument_types()
         super().__init__()
+        self.bias = bias
+        self.channels = channels
+        self.kernel_size = kernel_size
+        self.adaptive_scale = adaptive_scale
+        if self.adaptive_scale:
+            ada_scale = self.create_parameter(
+                [1, 1, channels], default_initializer=I.Constant(1.0))
+            self.add_parameter('ada_scale', ada_scale)
+            ada_bias = self.create_parameter(
+                [1, 1, channels], default_initializer=I.Constant(0.0))
+            self.add_parameter('ada_bias', ada_bias)
+
         self.pointwise_conv1 = Conv1D(
             channels,
             2 * channels,
@@ -106,30 +120,58 @@ class ConvolutionModule(nn.Layer):
         )
         self.activation = activation
 
-    def forward(self,
-                x: paddle.Tensor,
-                mask_pad: Optional[paddle.Tensor]=None,
-                cache: Optional[paddle.Tensor]=None
-                ) -> Tuple[paddle.Tensor, paddle.Tensor]:
+        if init_weights:
+            self.init_weights()
+
+    def init_weights(self):
+        pw_max = self.channels**-0.5
+        dw_max = self.kernel_size**-0.5
+        self.pointwise_conv1._param_attr = paddle.nn.initializer.Uniform(
+            low=-pw_max, high=pw_max)
+        if self.bias:
+            self.pointwise_conv1._bias_attr = paddle.nn.initializer.Uniform(
+                low=-pw_max, high=pw_max)
+        self.depthwise_conv._param_attr = paddle.nn.initializer.Uniform(
+            low=-dw_max, high=dw_max)
+        if self.bias:
+            self.depthwise_conv._bias_attr = paddle.nn.initializer.Uniform(
+                low=-dw_max, high=dw_max)
+        self.pointwise_conv2._param_attr = paddle.nn.initializer.Uniform(
+            low=-pw_max, high=pw_max)
+        if self.bias:
+            self.pointwise_conv2._bias_attr = paddle.nn.initializer.Uniform(
+                low=-pw_max, high=pw_max)
+
+    def forward(
+            self,
+            x: paddle.Tensor,
+            mask_pad: paddle.Tensor=paddle.ones([0, 0, 0], dtype=paddle.bool),
+            cache: paddle.Tensor=paddle.zeros([0, 0, 0, 0])
+    ) -> Tuple[paddle.Tensor, paddle.Tensor]:
         """Compute convolution module.
         Args:
             x (paddle.Tensor): Input tensor (#batch, time, channels).
-            mask_pad (paddle.Tensor): used for batch padding, (#batch, channels, time).
+            mask_pad (paddle.Tensor): used for batch padding (#batch, 1, time),
+                (0, 0, 0) means fake mask.
             cache (paddle.Tensor): left context cache, it is only
-                used in causal convolution. (#batch, channels, time')
+                used in causal convolution (#batch, channels, cache_t),
+                (0, 0, 0) meas fake cache.
         Returns:
             paddle.Tensor: Output tensor (#batch, time, channels).
             paddle.Tensor: Output cache tensor (#batch, channels, time')
         """
+        if self.adaptive_scale:
+            x = self.ada_scale * x + self.ada_bias
+
         # exchange the temporal dimension and the feature dimension
         x = x.transpose([0, 2, 1])  # [B, C, T]
 
         # mask batch padding
-        if mask_pad is not None:
+        if mask_pad.shape[2] > 0:  # time > 0
             x = x.masked_fill(mask_pad, 0.0)
 
         if self.lorder > 0:
-            if cache is None:
+            if cache.shape[2] == 0:  # cache_t == 0
                 x = nn.functional.pad(
                     x, [self.lorder, 0], 'constant', 0.0, data_format='NCL')
             else:
@@ -143,7 +185,7 @@ class ConvolutionModule(nn.Layer):
             # It's better we just return None if no cache is requried,
             # However, for JIT export, here we just fake one tensor instead of
             # None.
-            new_cache = paddle.zeros([1], dtype=x.dtype)
+            new_cache = paddle.zeros([0, 0, 0], dtype=x.dtype)
 
         # GLU mechanism
         x = self.pointwise_conv1(x)  # (batch, 2*channel, dim)
@@ -159,7 +201,7 @@ class ConvolutionModule(nn.Layer):
         x = self.pointwise_conv2(x)
 
         # mask batch padding
-        if mask_pad is not None:
+        if mask_pad.shape[2] > 0:  # time > 0
             x = x.masked_fill(mask_pad, 0.0)
 
         x = x.transpose([0, 2, 1])  # [B, T, C]

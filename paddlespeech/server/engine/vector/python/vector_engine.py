@@ -16,9 +16,9 @@ from collections import OrderedDict
 
 import numpy as np
 import paddle
+from paddleaudio.backends import soundfile_load as load_audio
+from paddleaudio.compliance.librosa import melspectrogram
 
-from paddlespeech.audio.backends import load as load_audio
-from paddlespeech.audio.compliance.librosa import melspectrogram
 from paddlespeech.cli.log import logger
 from paddlespeech.cli.vector.infer import VectorExecutor
 from paddlespeech.server.engine.base_engine import BaseEngine
@@ -105,7 +105,8 @@ class PaddleVectorConnectionHandler:
         # we can not reuse the cache io.BytesIO(audio) data, 
         # because the soundfile will change the io.BytesIO(audio) to the end
         # thus we should convert the base64 string to io.BytesIO when we need the audio data
-        if not self.executor._check(io.BytesIO(audio), sample_rate):
+        if not self.executor._check(
+                io.BytesIO(audio), sample_rate, force_yes=True):
             logger.debug("check the audio sample rate occurs error")
             return np.array([0.0])
 

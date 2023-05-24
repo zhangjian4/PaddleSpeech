@@ -1,5 +1,5 @@
 # Transformer/Conformer ASR with Tiny
-This example contains code used to train a Transformer or [Conformer](http://arxiv.org/abs/2008.03802) model  Tiny dataset(a part of [[Librispeech dataset](http://www.openslr.org/resources/12)](http://www.openslr.org/resources/33))
+This example contains code used to train a [u2](https://arxiv.org/pdf/2012.05481.pdf) model (Transformer or [Conformer](https://arxiv.org/pdf/2005.08100.pdf) model) with Tiny dataset(a part of [[Librispeech dataset](http://www.openslr.org/resources/12)](http://www.openslr.org/resources/33))
 ## Overview
 All the scripts you need are in `run.sh`. There are several stages in `run.sh`, and each stage has its function.
 | Stage | Function                                                     |
@@ -37,7 +37,7 @@ It will support the way of using `--variable value` in the shell scripts.
 Some local variables are set in `run.sh`. 
 `gpus` denotes the GPU number you want to use. If you set `gpus=`, it means you only use CPU. 
 `stage` denotes the number of stage you want the start from in the experiments.
-`stop stage` denotes the number of stage you want the stop at in the expriments. 
+`stop stage` denotes the number of stage you want the stop at in the experiments. 
 `conf_path` denotes the config path of the model.
 `avg_num`denotes the number K of top-K models you want to average to get the final model.
 `ckpt` denotes the checkpoint prefix of the model, e.g. "transformerr"

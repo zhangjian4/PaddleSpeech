@@ -15,9 +15,8 @@
 import librosa
 import numpy as np
 import paddle
+from paddleaudio.compliance import kaldi
 from python_speech_features import logfbank
-
-from ..compliance import kaldi
 
 
 def stft(x,
@@ -380,6 +379,34 @@ class LogMelSpectrogramKaldi():
             sr=self.fs)
         mat = np.squeeze(mat.numpy())
         return mat
+
+
+class WavProcess():
+    def __init__(self):
+        """
+        Args:
+            dither (float): Dithering constant
+
+        Returns:
+        """
+
+    def __call__(self, x):
+        """
+        Args:
+            x (np.ndarray): shape (Ti,)
+            train (bool): True, train mode.
+
+        Raises:
+            ValueError: not support (Ti, C)
+
+        Returns:
+            np.ndarray: (T, D)
+        """
+        if x.ndim != 1:
+            raise ValueError("Not support x: [Time, Channel]")
+        waveform = x.astype("float32") / 32768.0
+        waveform = np.expand_dims(waveform, -1)
+        return waveform
 
 
 class LogMelSpectrogramKaldi_decay():

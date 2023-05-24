@@ -25,12 +25,131 @@ __all__ = [
     'tts_static_pretrained_models',
     'tts_onnx_pretrained_models',
     'vector_dynamic_pretrained_models',
+    'ssl_dynamic_pretrained_models',
+    'whisper_dynamic_pretrained_models',
 ]
 
 # The tags for pretrained_models should be "{model_name}[_{dataset}][-{lang}][-...]".
+# Add code-switch and multilingual tag, "{model_name}[_{dataset}]-[codeswitch/multilingual][_{lang}][-...]".
 # e.g. "conformer_wenetspeech-zh-16k" and "panns_cnn6-32k".
 # Command line and python api use "{model_name}[_{dataset}]" as --model, usage:
 # "paddlespeech asr --model conformer_wenetspeech --lang zh --sr 16000 --input ./input.wav"
+
+# ---------------------------------
+# -------------- SSL --------------
+# ---------------------------------
+ssl_dynamic_pretrained_models = {
+    "wav2vec2-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/librispeech/asr3/wav2vec2-large-960h-lv60-self_ckpt_1.3.0.model.tar.gz',
+            'md5':
+            'acc46900680e341e500437aa59193518',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'wav2vec2-large-960h-lv60-self',
+            'model':
+            'wav2vec2-large-960h-lv60-self.pdparams',
+            'params':
+            'wav2vec2-large-960h-lv60-self.pdparams',
+        },
+    },
+    "wav2vec2ASR_librispeech-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/librispeech/asr3/wav2vec2ASR-large-960h-librispeech_ckpt_1.3.1.model.tar.gz',
+            'md5':
+            'cbe28d6c78f3dd2e189968402381f454',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/wav2vec2ASR/checkpoints/avg_1',
+            'model':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+            'params':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+        },
+    },
+    "wav2vec2-zh-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/aishell/asr3/wav2vec2-large-wenetspeech-self_ckpt_1.3.0.model.tar.gz',
+            'md5':
+            '00ea4975c05d1bb58181205674052fe1',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'chinese-wav2vec2-large',
+            'model':
+            'chinese-wav2vec2-large.pdparams',
+            'params':
+            'chinese-wav2vec2-large.pdparams',
+        },
+    },
+    "wav2vec2ASR_aishell1-zh-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/aishell/asr3/wav2vec2ASR-large-aishell1_ckpt_1.3.0.model.tar.gz',
+            'md5':
+            'ac8fa0a6345e6a7535f6fabb5e59e218',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/wav2vec2ASR/checkpoints/avg_1',
+            'model':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+            'params':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+        },
+        '1.4': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/aishell/asr3/wav2vec2ASR-large-aishell1_ckpt_1.4.0.model.tar.gz',
+            'md5':
+            '150e51b8ea5d255ccce6b395de8d916a',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/wav2vec2ASR/checkpoints/avg_1',
+            'model':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+            'params':
+            'exp/wav2vec2ASR/checkpoints/avg_1.pdparams',
+        },
+    },
+    "hubert-en-16k": {
+        '1.4': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/hubert/hubert-large-lv60_ckpt_1.4.0.model.tar.gz',
+            'md5':
+            'efecfb87a8718aa9253b7459c1fe9b54',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'hubert-large-lv60',
+            'model':
+            'hubert-large-lv60.pdparams',
+            'params':
+            'hubert-large-lv60.pdparams',
+        },
+    },
+    "hubertASR_librispeech-100h-en-16k": {
+        '1.4': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/hubert/hubertASR-large-100h-librispeech_ckpt_1.4.0.model.tar.gz',
+            'md5':
+            '574cefd11aaef5737969ce22a7f33ea2',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/hubertASR/checkpoints/avg_1',
+            'model':
+            'exp/hubertASR/checkpoints/avg_1.pdparams',
+            'params':
+            'exp/hubertASR/checkpoints/avg_1.pdparams',
+        },
+    },
+}
 
 # ---------------------------------
 # -------------- ASR --------------
@@ -62,6 +181,26 @@ asr_dynamic_pretrained_models = {
             'exp/chunk_conformer/checkpoints/avg_10.pdparams',
             'params':
             'exp/chunk_conformer/checkpoints/avg_10.pdparams',
+            'lm_url':
+            '',
+            'lm_md5':
+            '',
+        },
+    },
+    "conformer_u2pp_online_wenetspeech-zh-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/wenetspeech/asr1/asr1_chunk_conformer_u2pp_wenetspeech_ckpt_1.3.0.model.tar.gz',
+            'md5':
+            '62d230c1bf27731192aa9d3b8deca300',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/chunk_conformer_u2pp/checkpoints/avg_10',
+            'model':
+            'exp/chunk_conformer_u2pp/checkpoints/avg_10.pdparams',
+            'params':
+            'exp/chunk_conformer_u2pp/checkpoints/avg_10.pdparams',
             'lm_url':
             '',
             'lm_md5':
@@ -116,6 +255,16 @@ asr_dynamic_pretrained_models = {
             'https://paddlespeech.bj.bcebos.com/s2t/aishell/asr1/asr1_chunk_conformer_aishell_ckpt_0.2.0.model.tar.gz',
             'md5':
             'b374cfb93537761270b6224fb0bfc26a',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/chunk_conformer/checkpoints/avg_30',
+        },
+        '1.4': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/aishell/asr1/asr1_conformer_aishell_ckpt_1.5.0.model.tar.gz',
+            'md5':
+            'a0adb2b204902982718bc1d8917f7038',
             'cfg_path':
             'model.yaml',
             'ckpt_path':
@@ -228,6 +377,18 @@ asr_dynamic_pretrained_models = {
             'https://deepspeech.bj.bcebos.com/en_lm/common_crawl_00.prune01111.trie.klm',
             'lm_md5':
             '099a601759d467cd0a8523ff939819c5'
+        },
+    },
+    "conformer_talcs-codeswitch_zh_en-16k": {
+        '1.4': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/s2t/tal_cs/asr1/asr1_conformer_talcs_ckpt_1.4.0.model.tar.gz',
+            'md5':
+            '01962c5d0a70878fe41cacd4f61e14d1',
+            'cfg_path':
+            'model.yaml',
+            'ckpt_path':
+            'exp/conformer/checkpoints/avg_10'
         },
     },
 }
@@ -404,6 +565,189 @@ asr_onnx_pretrained_models = {
     },
 }
 
+whisper_dynamic_pretrained_models = {
+    "whisper-large-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-large-model.tar.gz',
+            'md5':
+            'cf1557af9d8ffa493fefad9cb08ae189',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-large-model',
+            'model':
+            'whisper-large-model.pdparams',
+            'params':
+            'whisper-large-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-base-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-base-en-model.tar.gz',
+            'md5':
+            'b156529aefde6beb7726d2ea98fd067a',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-base-en-model',
+            'model':
+            'whisper-base-en-model.pdparams',
+            'params':
+            'whisper-base-en-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-base-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-base-model.tar.gz',
+            'md5':
+            '6b012a5abd583db14398c3492e47120b',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-base-model',
+            'model':
+            'whisper-base-model.pdparams',
+            'params':
+            'whisper-base-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-medium-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-medium-en-model.tar.gz',
+            'md5':
+            'c7f57d270bd20c7b170ba9dcf6c16f74',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-medium-en-model',
+            'model':
+            'whisper-medium-en-model.pdparams',
+            'params':
+            'whisper-medium-en-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-medium-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-medium-model.tar.gz',
+            'md5':
+            '4c7dcd0df25f408199db4a4548336786',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-medium-model',
+            'model':
+            'whisper-medium-model.pdparams',
+            'params':
+            'whisper-medium-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-small-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-small-en-model.tar.gz',
+            'md5':
+            '2b24efcb2e93f3275af7c0c7f598ff1c',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-small-en-model',
+            'model':
+            'whisper-small-en-model.pdparams',
+            'params':
+            'whisper-small-en-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-small-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-small-model.tar.gz',
+            'md5':
+            '5a57911dd41651dd6ed78c5763912825',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-small-model',
+            'model':
+            'whisper-small-model.pdparams',
+            'params':
+            'whisper-small-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-tiny-en-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-tiny-en-model.tar.gz',
+            'md5':
+            '14969164a3f713fd58e56978c34188f6',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-tiny-en-model',
+            'model':
+            'whisper-tiny-en-model.pdparams',
+            'params':
+            'whisper-tiny-en-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+    "whisper-tiny-16k": {
+        '1.3': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221122/whisper-tiny-model.tar.gz',
+            'md5':
+            'a5b82a1f2067a2ca400f17fabd62b81b',
+            'cfg_path':
+            'whisper.yaml',
+            'ckpt_path':
+            'whisper-tiny-model',
+            'model':
+            'whisper-tiny-model.pdparams',
+            'params':
+            'whisper-tiny-model.pdparams',
+            'resource_data':
+            'https://paddlespeech.bj.bcebos.com/whisper/whisper_model_20221108/assets.tar',
+            'resource_data_md5':
+            '37a0a8abdb3641a51194f79567a93b61',
+        },
+    },
+}
+
 # ---------------------------------
 # -------------- CLS --------------
 # ---------------------------------
@@ -529,7 +873,7 @@ text_dynamic_pretrained_models = {
             'ckpt/model_state.pdparams',
             'vocab_file':
             'punc_vocab.txt',
-        },
+        }
     },
     "ernie_linear_p3_wudao-punc-zh": {
         '1.0': {
@@ -543,8 +887,22 @@ text_dynamic_pretrained_models = {
             'ckpt/model_state.pdparams',
             'vocab_file':
             'punc_vocab.txt',
-        },
+        }
     },
+    "ernie_linear_p3_wudao_fast-punc-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/text/ernie_linear_p3_wudao_fast-punc-zh.tar.gz',
+            'md5':
+            'c93f9594119541a5dbd763381a751d08',
+            'cfg_path':
+            'ckpt/model_config.json',
+            'ckpt_path':
+            'ckpt/model_state.pdparams',
+            'vocab_file':
+            'punc_vocab.txt',
+        }
+    }
 }
 
 # ---------------------------------
@@ -585,6 +943,24 @@ tts_dynamic_pretrained_models = {
             'speech_stats.npy',
             'phones_dict':
             'phone_id_map.txt',
+        },
+    },
+    "fastspeech2_canton-canton": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_canton_ckpt_1.4.0.zip',
+            'md5':
+            '504560c082deba82120927627c900374',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_140000.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
         },
     },
     "fastspeech2_ljspeech-en": {
@@ -649,6 +1025,88 @@ tts_dynamic_pretrained_models = {
             'cnndecoder.yaml',
             'ckpt':
             'snapshot_iter_153000.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+        },
+    },
+    "fastspeech2_mix-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_csmscljspeech_add-zhen.zip',
+            'md5':
+            '77d9d4b5a79ed6203339ead7ef6c74f9',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_94000.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+        },
+        '2.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_mix_ckpt_0.2.0.zip',
+            'md5':
+            '1d938e104e972386c8bfcbcc98a91587',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_99200.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+        },
+    },
+    "fastspeech2_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_zh_ckpt_1.4.0.zip',
+            'md5':
+            '43a9f4bc48a91f5a6f53017474e6c788',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_76000.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+        },
+    },
+    "fastspeech2_male-en": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_en_ckpt_1.4.0.zip',
+            'md5':
+            'cc9f44f1f20a8173f63e2d1d41ef1a9c',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_100000.pdz',
+            'speech_stats':
+            'speech_stats.npy',
+            'phones_dict':
+            'phone_id_map.txt',
+        },
+    },
+    "fastspeech2_male-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_mix_ckpt_1.4.0.zip',
+            'md5':
+            '6d48ad60ef0ab2cee89a5d8cfd93dd86',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_177000.pdz',
             'speech_stats':
             'speech_stats.npy',
             'phones_dict':
@@ -745,6 +1203,20 @@ tts_dynamic_pretrained_models = {
             'feats_stats.npy',
         },
     },
+    "pwgan_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/pwgan/pwg_male_ckpt_1.4.0.zip',
+            'md5':
+            'a443d6253bf9be377f27ae5972a03c65',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_200000.pdz',
+            'speech_stats':
+            'feats_stats.npy',
+        },
+    },
     # mb_melgan
     "mb_melgan_csmsc-zh": {
         '1.0': {
@@ -832,6 +1304,20 @@ tts_dynamic_pretrained_models = {
             'feats_stats.npy',
         },
     },
+    "hifigan_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/hifigan/hifigan_male_ckpt_1.4.0.zip',
+            'md5':
+            'a709830596e102c2b83f8adc26d41d85',
+            'config':
+            'default.yaml',
+            'ckpt':
+            'snapshot_iter_630000.pdz',
+            'speech_stats':
+            'feats_stats.npy',
+        },
+    },
     # wavernn
     "wavernn_csmsc-zh": {
         '1.0': {
@@ -848,6 +1334,15 @@ tts_dynamic_pretrained_models = {
         },
     },
 }
+tts_dynamic_pretrained_models[
+    "fastspeech2_mix-zh"] = tts_dynamic_pretrained_models[
+        "fastspeech2_mix-en"] = tts_dynamic_pretrained_models[
+            "fastspeech2_mix-mix"]
+tts_dynamic_pretrained_models["pwgan_male-en"] = tts_dynamic_pretrained_models[
+    "pwgan_male-mix"] = tts_dynamic_pretrained_models["pwgan_male-zh"]
+tts_dynamic_pretrained_models[
+    "hifigan_male-en"] = tts_dynamic_pretrained_models[
+        "hifigan_male-mix"] = tts_dynamic_pretrained_models["hifigan_male-zh"]
 
 tts_static_pretrained_models = {
     # speedyspeech
@@ -938,6 +1433,106 @@ tts_static_pretrained_models = {
             24000,
         },
     },
+    "fastspeech2_mix-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_csmscljspeech_add-zhen_static.zip',
+            'md5':
+            'b5001f66cccafdde07707e1b6269fa58',
+            'model':
+            'fastspeech2_mix.pdmodel',
+            'params':
+            'fastspeech2_mix.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+        '2.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_mix_static_0.2.0.zip',
+            'md5':
+            'c6dd138fab3ba261299c0b2efee51d5a',
+            'model':
+            'fastspeech2_mix.pdmodel',
+            'params':
+            'fastspeech2_mix.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_zh_static_1.4.0.zip',
+            'md5':
+            '9b7218829e7fa01aa33dbb2c5f6ef20f',
+            'model':
+            'fastspeech2_male-zh.pdmodel',
+            'params':
+            'fastspeech2_male-zh.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male-en": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_en_static_1.4.0.zip',
+            'md5':
+            '33cea19b6821b371d242969ffd8b6cbf',
+            'model':
+            'fastspeech2_male-en.pdmodel',
+            'params':
+            'fastspeech2_male-en.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_mix_static_1.4.0.zip',
+            'md5':
+            '66585b04c0ced72f3cb82ee85b814d80',
+            'model':
+            'fastspeech2_male-mix.pdmodel',
+            'params':
+            'fastspeech2_male-mix.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_canton-canton": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_canton_static_1.4.0.zip',
+            'md5':
+            '5da80931666503b9b6aed25e894d2ade',
+            'model':
+            'fastspeech2_canton.pdmodel',
+            'params':
+            'fastspeech2_canton.pdiparams',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
     # pwgan
     "pwgan_csmsc-zh": {
         '1.0': {
@@ -991,6 +1586,20 @@ tts_static_pretrained_models = {
             'pwgan_vctk.pdmodel',
             'params':
             'pwgan_vctk.pdiparams',
+            'sample_rate':
+            24000,
+        },
+    },
+    "pwgan_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/pwgan/pwgan_male_static_1.4.0.zip',
+            'md5':
+            '52a480ad35694b96603e0a92e9fb3f95',
+            'model':
+            'pwgan_male.pdmodel',
+            'params':
+            'pwgan_male.pdiparams',
             'sample_rate':
             24000,
         },
@@ -1067,7 +1676,32 @@ tts_static_pretrained_models = {
             24000,
         },
     },
+    "hifigan_male-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/hifigan/hifigan_male_static_1.4.0.zip',
+            'md5':
+            '9011fa2738b501e909d1a61054bed29b',
+            'model':
+            'hifigan_male.pdmodel',
+            'params':
+            'hifigan_male.pdiparams',
+            'sample_rate':
+            24000,
+        },
+    },
 }
+
+tts_static_pretrained_models[
+    "fastspeech2_mix-zh"] = tts_static_pretrained_models[
+        "fastspeech2_mix-en"] = tts_static_pretrained_models[
+            "fastspeech2_mix-mix"]
+tts_static_pretrained_models["pwgan_male-en"] = tts_static_pretrained_models[
+    "pwgan_male-mix"] = tts_static_pretrained_models["pwgan_male-zh"]
+tts_static_pretrained_models["hifigan_male-en"] = tts_static_pretrained_models[
+    "hifigan_male-mix"] = tts_static_pretrained_models["hifigan_male-zh"]
+tts_static_pretrained_models[
+    "pwgan_aishell3-canton"] = tts_static_pretrained_models["pwgan_aishell3-zh"]
 
 tts_onnx_pretrained_models = {
     # speedyspeech
@@ -1077,7 +1711,8 @@ tts_onnx_pretrained_models = {
             'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/speedyspeech/speedyspeech_csmsc_onnx_0.2.0.zip',
             'md5':
             '3e9c45af9ef70675fc1968ed5074fc88',
-            'ckpt': ['speedyspeech_csmsc.onnx'],
+            'ckpt':
+            'speedyspeech_csmsc.onnx',
             'phones_dict':
             'phone_id_map.txt',
             'tones_dict':
@@ -1093,7 +1728,8 @@ tts_onnx_pretrained_models = {
             'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_csmsc_onnx_0.2.0.zip',
             'md5':
             'fd3ad38d83273ad51f0ea4f4abf3ab4e',
-            'ckpt': ['fastspeech2_csmsc.onnx'],
+            'ckpt':
+            'fastspeech2_csmsc.onnx',
             'phones_dict':
             'phone_id_map.txt',
             'sample_rate':
@@ -1106,7 +1742,8 @@ tts_onnx_pretrained_models = {
             'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_ljspeech_onnx_1.1.0.zip',
             'md5':
             '00754307636a48c972a5f3e65cda3d18',
-            'ckpt': ['fastspeech2_ljspeech.onnx'],
+            'ckpt':
+            'fastspeech2_ljspeech.onnx',
             'phones_dict':
             'phone_id_map.txt',
             'sample_rate':
@@ -1119,7 +1756,8 @@ tts_onnx_pretrained_models = {
             'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_aishell3_onnx_1.1.0.zip',
             'md5':
             'a1d6ee21de897ce394f5469e2bb4df0d',
-            'ckpt': ['fastspeech2_aishell3.onnx'],
+            'ckpt':
+            'fastspeech2_aishell3.onnx',
             'phones_dict':
             'phone_id_map.txt',
             'speaker_dict':
@@ -1131,10 +1769,11 @@ tts_onnx_pretrained_models = {
     "fastspeech2_vctk_onnx-en": {
         '1.0': {
             'url':
-            'hhttps://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_vctk_onnx_1.1.0.zip',
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_vctk_onnx_1.1.0.zip',
             'md5':
             'd9c3a9b02204a2070504dd99f5f959bf',
-            'ckpt': ['fastspeech2_vctk.onnx'],
+            'ckpt':
+            'fastspeech2_vctk.onnx',
             'phones_dict':
             'phone_id_map.txt',
             'speaker_dict':
@@ -1158,6 +1797,94 @@ tts_onnx_pretrained_models = {
             'speech_stats.npy',
             'phones_dict':
             'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_mix_onnx-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_csmscljspeech_add-zhen_onnx.zip',
+            'md5':
+            '73052520202957920cf54700980933d0',
+            'ckpt':
+            'fastspeech2_mix.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+        '2.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/t2s/chinse_english_mixed/models/fastspeech2_mix_onnx_0.2.0.zip',
+            'md5':
+            '43b8ca5f85709c503777f808eb02a39e',
+            'ckpt':
+            'fastspeech2_mix.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male_onnx-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_zh_onnx_1.4.0.zip',
+            'md5':
+            '46c66f5ab86f4fcb493d899d9901c863',
+            'ckpt':
+            'fastspeech2_male-zh.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male_onnx-en": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_en_onnx_1.4.0.zip',
+            'md5':
+            '401fb5cc31fdb25e22e901c9acba79c8',
+            'ckpt':
+            'fastspeech2_male-en.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_male_onnx-mix": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_male_mix_onnx_1.4.0.zip',
+            'md5':
+            '07e51c5991c529b78603034547e9d0fa',
+            'ckpt':
+            'fastspeech2_male-mix.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'sample_rate':
+            24000,
+        },
+    },
+    "fastspeech2_canton_onnx-canton": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/fastspeech2/fastspeech2_canton_onnx_1.4.0.zip',
+            'md5':
+            '1c8d51ceb2f9bdd168e23be575c2ccf8',
+            'ckpt':
+            'fastspeech2_canton.onnx',
+            'phones_dict':
+            'phone_id_map.txt',
+            'speaker_dict':
+            'speaker_id_map.txt',
             'sample_rate':
             24000,
         },
@@ -1207,6 +1934,18 @@ tts_onnx_pretrained_models = {
             '4e754d42cf85f6428f0af887c923d86c',
             'ckpt':
             'pwgan_vctk.onnx',
+            'sample_rate':
+            24000,
+        },
+    },
+    "pwgan_male_onnx-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/pwgan/pwgan_male_onnx_1.4.0.zip',
+            'md5':
+            '13163fd1326f555650dc7141d31767c3',
+            'ckpt':
+            'pwgan_male.onnx',
             'sample_rate':
             24000,
         },
@@ -1273,7 +2012,32 @@ tts_onnx_pretrained_models = {
             24000,
         },
     },
+    "hifigan_male_onnx-zh": {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/hifigan/hifigan_male_onnx_1.4.0.zip',
+            'md5':
+            'ec6b35417b1fe811d3b1641d4b527769',
+            'ckpt':
+            'hifigan_male.onnx',
+            'sample_rate':
+            24000,
+        },
+    },
 }
+
+tts_onnx_pretrained_models[
+    "fastspeech2_mix_onnx-zh"] = tts_onnx_pretrained_models[
+        "fastspeech2_mix_onnx-en"] = tts_onnx_pretrained_models[
+            "fastspeech2_mix_onnx-mix"]
+tts_onnx_pretrained_models["pwgan_male_onnx-en"] = tts_onnx_pretrained_models[
+    "pwgan_male_onnx-mix"] = tts_onnx_pretrained_models["pwgan_male_onnx-zh"]
+tts_onnx_pretrained_models["hifigan_male_onnx-en"] = tts_onnx_pretrained_models[
+    "hifigan_male_onnx-mix"] = tts_onnx_pretrained_models[
+        "hifigan_male_onnx-zh"]
+tts_onnx_pretrained_models[
+    "pwgan_aishell3_onnx-canton"] = tts_onnx_pretrained_models[
+        "pwgan_aishell3_onnx-zh"]
 
 # ---------------------------------
 # ------------ Vector -------------
@@ -1311,4 +2075,50 @@ kws_dynamic_pretrained_models = {
             'ckpt/model',
         },
     },
+}
+
+# ---------------------------------
+# ------------- G2PW ---------------
+# ---------------------------------
+g2pw_onnx_models = {
+    'G2PWModel': {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/g2p/G2PWModel_1.0.zip',
+            'md5':
+            '7e049a55547da840502cf99e8a64f20e',
+        },
+        '1.1': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/g2p/G2PWModel_1.1.zip',
+            'md5':
+            'f8b60501770bff92ed6ce90860a610e6',
+        },
+    },
+}
+
+# ---------------------------------
+# ---------- Rhy_frontend ---------
+# ---------------------------------
+rhy_frontend_models = {
+    'rhy_e2e': {
+        '1.0': {
+            'url':
+            'https://paddlespeech.bj.bcebos.com/Rhy_e2e/rhy_frontend.zip',
+            'md5': '6624a77393de5925d5a84400b363d8ef',
+        },
+    },
+}
+
+# ---------------------------------
+# ---------- StarGANv2VC ----------
+# ---------------------------------
+
+StarGANv2VC_source = {
+    '1.0': {
+        'url':
+        'https://paddlespeech.bj.bcebos.com/Parakeet/released_models/starganv2vc/StarGANv2VC_source.zip',
+        'md5':
+        '195e169419163f5648030ba84c71f866',
+    }
 }

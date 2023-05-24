@@ -24,6 +24,7 @@ from paddle import nn
 
 from paddlespeech.t2s.modules.nets_utils import make_non_pad_mask
 from paddlespeech.t2s.modules.transformer.encoder import ConformerEncoder as Encoder
+from paddlespeech.utils.initialize import normal_
 
 
 class TextEncoder(nn.Layer):
@@ -62,23 +63,40 @@ class TextEncoder(nn.Layer):
         """Initialize TextEncoder module.
 
         Args:
-            vocabs (int): Vocabulary size.
-            attention_dim (int): Attention dimension.
-            attention_heads (int): Number of attention heads.
-            linear_units (int): Number of linear units of positionwise layers.
-            blocks (int): Number of encoder blocks.
-            positionwise_layer_type (str): Positionwise layer type.
-            positionwise_conv_kernel_size (int): Positionwise layer's kernel size.
-            positional_encoding_layer_type (str): Positional encoding layer type.
-            self_attention_layer_type (str): Self-attention layer type.
-            activation_type (str): Activation function type.
-            normalize_before (bool): Whether to apply LayerNorm before attention.
-            use_macaron_style (bool): Whether to use macaron style components.
-            use_conformer_conv (bool): Whether to use conformer conv layers.
-            conformer_kernel_size (int): Conformer's conv kernel size.
-            dropout_rate (float): Dropout rate.
-            positional_dropout_rate (float): Dropout rate for positional encoding.
-            attention_dropout_rate (float): Dropout rate for attention.
+            vocabs (int):
+                Vocabulary size.
+            attention_dim (int):
+                Attention dimension.
+            attention_heads (int):
+                Number of attention heads.
+            linear_units (int):
+                Number of linear units of positionwise layers.
+            blocks (int):
+                Number of encoder blocks.
+            positionwise_layer_type (str):
+                Positionwise layer type.
+            positionwise_conv_kernel_size (int):
+                Positionwise layer's kernel size.
+            positional_encoding_layer_type (str):
+                Positional encoding layer type.
+            self_attention_layer_type (str):
+                Self-attention layer type.
+            activation_type (str):
+                Activation function type.
+            normalize_before (bool):
+                Whether to apply LayerNorm before attention.
+            use_macaron_style (bool):
+                Whether to use macaron style components.
+            use_conformer_conv (bool):
+                Whether to use conformer conv layers.
+            conformer_kernel_size (int):
+                Conformer's conv kernel size.
+            dropout_rate (float):
+                Dropout rate.
+            positional_dropout_rate (float):
+                Dropout rate for positional encoding.
+            attention_dropout_rate (float):
+                Dropout rate for attention.
 
         """
         super().__init__()
@@ -87,10 +105,6 @@ class TextEncoder(nn.Layer):
 
         # define modules
         self.emb = nn.Embedding(vocabs, attention_dim)
-
-        dist = paddle.distribution.Normal(loc=0.0, scale=attention_dim**-0.5)
-        w = dist.sample(self.emb.weight.shape)
-        self.emb.weight.set_value(w)
 
         self.encoder = Encoder(
             idim=-1,
@@ -113,6 +127,8 @@ class TextEncoder(nn.Layer):
             cnn_module_kernel=conformer_kernel_size, )
         self.proj = nn.Conv1D(attention_dim, attention_dim * 2, 1)
 
+        self.reset_parameters()
+
     def forward(
             self,
             x: paddle.Tensor,
@@ -121,14 +137,20 @@ class TextEncoder(nn.Layer):
         """Calculate forward propagation.
 
         Args:
-            x (Tensor): Input index tensor (B, T_text).
-            x_lengths (Tensor): Length tensor (B,).
+            x (Tensor):
+                Input index tensor (B, T_text).
+            x_lengths (Tensor):
+                Length tensor (B,).
 
         Returns:
-            Tensor: Encoded hidden representation (B, attention_dim, T_text).
-            Tensor: Projected mean tensor (B, attention_dim, T_text).
-            Tensor: Projected scale tensor (B, attention_dim, T_text).
-            Tensor: Mask tensor for input tensor (B, 1, T_text).
+            Tensor:
+                Encoded hidden representation (B, attention_dim, T_text).
+            Tensor:
+                Projected mean tensor (B, attention_dim, T_text).
+            Tensor:
+                Projected scale tensor (B, attention_dim, T_text).
+            Tensor:
+                Mask tensor for input tensor (B, 1, T_text).
 
         """
         x = self.emb(x) * math.sqrt(self.attention_dim)
@@ -143,3 +165,9 @@ class TextEncoder(nn.Layer):
         m, logs = paddle.split(stats, 2, axis=1)
 
         return x, m, logs, x_mask
+
+    def reset_parameters(self):
+        normal_(self.emb.weight, mean=0.0, std=self.attention_dim**-0.5)
+        if self.emb._padding_idx is not None:
+            with paddle.no_grad():
+                self.emb.weight[self.emb._padding_idx] = 0

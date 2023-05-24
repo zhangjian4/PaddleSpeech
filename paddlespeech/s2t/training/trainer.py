@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import sys
 import time
 from collections import OrderedDict
@@ -19,6 +20,10 @@ from pathlib import Path
 
 import paddle
 from paddle import distributed as dist
+world_size = dist.get_world_size()
+if world_size > 1:
+    dist.init_parallel_env()
+
 from visualdl import LogWriter
 
 from paddlespeech.s2t.training.reporter import ObsScope
@@ -106,6 +111,7 @@ class Trainer():
         self.rank = dist.get_rank()
         self.world_size = dist.get_world_size()
         self._train = True
+        self.scaler = None
 
         # print deps version
         all_version()
@@ -121,9 +127,6 @@ class Trainer():
             paddle.set_device("gpu")
         else:
             raise Exception("invalid device")
-
-        if self.parallel:
-            self.init_parallel()
 
         self.checkpoint = Checkpoint(
             kbest_n=self.config.checkpoint.kbest_n,
@@ -173,11 +176,6 @@ class Trainer():
         """
         return self.args.ngpu > 1
 
-    def init_parallel(self):
-        """Init environment for multiprocess training.
-        """
-        dist.init_parallel_env()
-
     @mp_tools.rank_zero_only
     def save(self, tag=None, infos: dict=None):
         """Save checkpoint (model parameters and optimizer states).
@@ -191,8 +189,13 @@ class Trainer():
         infos.update({
             "step": self.iteration,
             "epoch": self.epoch,
-            "lr": self.optimizer.get_lr()
+            "lr": self.optimizer.get_lr(),
         })
+        if self.scaler:
+            scaler_path = os.path.join(self.checkpoint_dir,
+                                       "{}".format(self.epoch)) + '.scaler'
+            paddle.save(self.scaler.state_dict(), scaler_path)
+
         self.checkpoint.save_parameters(self.checkpoint_dir, self.iteration
                                         if tag is None else tag, self.model,
                                         self.optimizer, infos)
@@ -215,6 +218,13 @@ class Trainer():
             # lr will resotre from optimizer ckpt
             self.iteration = infos["step"]
             self.epoch = infos["epoch"]
+
+            scaler_path = os.path.join(self.checkpoint_dir,
+                                       "{}".format(self.epoch)) + '.scaler'
+            if os.path.exists(scaler_path):
+                scaler_state_dict = paddle.load(scaler_path)
+                self.scaler.load_state_dict(scaler_state_dict)
+
             scratch = False
             logger.info(
                 f"Restore ckpt: epoch {self.epoch }, step {self.iteration}!")

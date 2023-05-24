@@ -67,7 +67,7 @@ def train_sp(args, config):
     if args.speaker_dict is not None:
         print("multiple speaker fastspeech2!")
         collate_fn = fastspeech2_multi_spk_batch_fn
-        with open(args.speaker_dict, 'rt') as f:
+        with open(args.speaker_dict, 'rt', encoding='utf-8') as f:
             spk_id = [line.strip().split() for line in f.readlines()]
         spk_num = len(spk_id)
         fields += ["spk_id"]
@@ -123,7 +123,7 @@ def train_sp(args, config):
         num_workers=config.num_workers)
     print("dataloaders done!")
 
-    with open(args.phones_dict, "r") as f:
+    with open(args.phones_dict, 'rt', encoding='utf-8') as f:
         phn_id = [line.strip().split() for line in f.readlines()]
     vocab_size = len(phn_id)
     print("vocab_size:", vocab_size)
@@ -145,17 +145,27 @@ def train_sp(args, config):
         # copy conf to output_dir
         shutil.copyfile(args.config, output_dir / config_name)
 
+    if "enable_speaker_classifier" in config.model:
+        enable_spk_cls = config.model.enable_speaker_classifier
+    else:
+        enable_spk_cls = False
+
     updater = FastSpeech2Updater(
         model=model,
         optimizer=optimizer,
         dataloader=train_dataloader,
         output_dir=output_dir,
-        **config["updater"])
+        enable_spk_cls=enable_spk_cls,
+        **config["updater"], )
 
     trainer = Trainer(updater, (config.max_epoch, 'epoch'), output_dir)
 
     evaluator = FastSpeech2Evaluator(
-        model, dev_dataloader, output_dir=output_dir, **config["updater"])
+        model,
+        dev_dataloader,
+        output_dir=output_dir,
+        enable_spk_cls=enable_spk_cls,
+        **config["updater"], )
 
     if dist.get_rank() == 0:
         trainer.extend(evaluator, trigger=(1, "epoch"))

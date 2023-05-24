@@ -21,10 +21,10 @@ import paddle
 from numpy import float32
 from yacs.config import CfgNode
 
+from paddlespeech.audio.transform.transformation import Transformation
 from paddlespeech.cli.asr.infer import ASRExecutor
 from paddlespeech.cli.log import logger
 from paddlespeech.resource import CommonTaskResource
-from paddlespeech.audio.transform.transformation import Transformation
 from paddlespeech.s2t.frontend.featurizer.text_featurizer import TextFeaturizer
 from paddlespeech.s2t.modules.ctc import CTCDecoder
 from paddlespeech.s2t.utils.tensor_utils import add_sos_eos
@@ -130,9 +130,9 @@ class PaddleASRConnectionHanddler:
 
         ## conformer
         # cache for conformer online
-        self.subsampling_cache = None
-        self.elayers_output_cache = None
-        self.conformer_cnn_cache = None
+        self.att_cache = paddle.zeros([0, 0, 0, 0])
+        self.cnn_cache = paddle.zeros([0, 0, 0, 0])
+
         self.encoder_out = None
         # conformer decoding state
         self.offset = 0  # global offset in decoding frame unit
@@ -474,11 +474,13 @@ class PaddleASRConnectionHanddler:
             # cur chunk
             chunk_xs = self.cached_feat[:, cur:end, :]
             # forward chunk
-            (y, self.subsampling_cache, self.elayers_output_cache,
-             self.conformer_cnn_cache) = self.model.encoder.forward_chunk(
-                 chunk_xs, self.offset, required_cache_size,
-                 self.subsampling_cache, self.elayers_output_cache,
-                 self.conformer_cnn_cache)
+            (y, self.att_cache,
+             self.cnn_cache) = self.model.encoder.forward_chunk(
+                 chunk_xs,
+                 self.offset,
+                 required_cache_size,
+                 att_cache=self.att_cache,
+                 cnn_cache=self.cnn_cache)
             outputs.append(y)
 
             # update the global offset, in decoding frame unit
@@ -578,6 +580,7 @@ class PaddleASRConnectionHanddler:
         self.update_result()
 
         beam_size = self.ctc_decode_config.beam_size
+        reverse_weight = getattr(self.ctc_decode_config, 'reverse_weight', 0.0)
         hyps = self.searcher.get_hyps()
         if hyps is None or len(hyps) == 0:
             logger.info("No Hyps!")
@@ -600,22 +603,23 @@ class PaddleASRConnectionHanddler:
 
         hyps_pad = pad_sequence(
             hyp_list, batch_first=True, padding_value=self.model.ignore_id)
+        ori_hyps_pad = hyps_pad
         hyps_lens = paddle.to_tensor(
             [len(hyp[0]) for hyp in hyps], place=self.device,
             dtype=paddle.long)  # (beam_size,)
         hyps_pad, _ = add_sos_eos(hyps_pad, self.model.sos, self.model.eos,
                                   self.model.ignore_id)
-        hyps_lens = hyps_lens + 1  # Add <sos> at begining
+        hyps_lens = hyps_lens + 1  # Add <sos> at beginning
 
-        encoder_out = self.encoder_out.repeat(beam_size, 1, 1)
-        encoder_mask = paddle.ones(
-            (beam_size, 1, encoder_out.shape[1]), dtype=paddle.bool)
-        decoder_out, _ = self.model.decoder(
-            encoder_out, encoder_mask, hyps_pad,
-            hyps_lens)  # (beam_size, max_hyps_len, vocab_size)
         # ctc score in ln domain
-        decoder_out = paddle.nn.functional.log_softmax(decoder_out, axis=-1)
+        # (beam_size, max_hyps_len, vocab_size)
+        decoder_out, r_decoder_out = self.model.forward_attention_decoder(
+            hyps_pad, hyps_lens, self.encoder_out, reverse_weight)
+
         decoder_out = decoder_out.numpy()
+        # r_decoder_out will be 0.0, if reverse_weight is 0.0 or decoder is a
+        # conventional transformer decoder.
+        r_decoder_out = r_decoder_out.numpy()
 
         # Only use decoder score for rescoring
         best_score = -float('inf')
@@ -628,6 +632,12 @@ class PaddleASRConnectionHanddler:
 
             # last decoder output token is `eos`, for laste decoder input token.
             score += decoder_out[i][len(hyp[0])][self.model.eos]
+            if reverse_weight > 0:
+                r_score = 0.0
+                for j, w in enumerate(hyp[0]):
+                    r_score += r_decoder_out[i][len(hyp[0]) - j - 1][w]
+                r_score += r_decoder_out[i][len(hyp[0])][self.model.eos]
+                score = score * (1 - reverse_weight) + r_score * reverse_weight
             # add ctc score (which in ln domain)
             score += hyp[1] * self.ctc_decode_config.ctc_weight
 

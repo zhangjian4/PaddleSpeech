@@ -24,8 +24,11 @@ from paddlespeech.t2s.exps.syn_utils import am_to_static
 from paddlespeech.t2s.exps.syn_utils import get_am_inference
 from paddlespeech.t2s.exps.syn_utils import get_frontend
 from paddlespeech.t2s.exps.syn_utils import get_sentences
+from paddlespeech.t2s.exps.syn_utils import get_sentences_svs
 from paddlespeech.t2s.exps.syn_utils import get_voc_inference
+from paddlespeech.t2s.exps.syn_utils import run_frontend
 from paddlespeech.t2s.exps.syn_utils import voc_to_static
+from paddlespeech.t2s.utils import str2bool
 
 
 def evaluate(args):
@@ -42,18 +45,18 @@ def evaluate(args):
     print(am_config)
     print(voc_config)
 
-    sentences = get_sentences(text_file=args.text, lang=args.lang)
-
     # frontend
     frontend = get_frontend(
         lang=args.lang,
         phones_dict=args.phones_dict,
-        tones_dict=args.tones_dict)
+        tones_dict=args.tones_dict,
+        pinyin_phone=args.pinyin_phone,
+        use_rhy=args.use_rhy)
+    print("frontend done!")
 
     # acoustic model
     am_name = args.am[:args.am.rindex('_')]
     am_dataset = args.am[args.am.rindex('_') + 1:]
-
     am_inference = get_am_inference(
         am=args.am,
         am_config=am_config,
@@ -61,7 +64,9 @@ def evaluate(args):
         am_stat=args.am_stat,
         phones_dict=args.phones_dict,
         tones_dict=args.tones_dict,
-        speaker_dict=args.speaker_dict)
+        speaker_dict=args.speaker_dict,
+        speech_stretchs=args.speech_stretchs, )
+    print("acoustic model done!")
 
     # vocoder
     voc_inference = get_voc_inference(
@@ -69,6 +74,7 @@ def evaluate(args):
         voc_config=voc_config,
         voc_ckpt=args.voc_ckpt,
         voc_stat=args.voc_stat)
+    print("voc done!")
 
     # whether dygraph to static
     if args.inference_dir:
@@ -78,7 +84,6 @@ def evaluate(args):
             am=args.am,
             inference_dir=args.inference_dir,
             speaker_dict=args.speaker_dict)
-
         # vocoder
         voc_inference = voc_to_static(
             voc_inference=voc_inference,
@@ -99,22 +104,26 @@ def evaluate(args):
 
     N = 0
     T = 0
+    if am_name == 'diffsinger':
+        sentences = get_sentences_svs(text_file=args.text)
+    else:
+        sentences = get_sentences(text_file=args.text, lang=args.lang)
     for utt_id, sentence in sentences:
         with timer() as t:
-            if args.lang == 'zh':
-                input_ids = frontend.get_input_ids(
-                    sentence,
-                    merge_sentences=merge_sentences,
-                    get_tone_ids=get_tone_ids)
-                phone_ids = input_ids["phone_ids"]
-                if get_tone_ids:
-                    tone_ids = input_ids["tone_ids"]
-            elif args.lang == 'en':
-                input_ids = frontend.get_input_ids(
-                    sentence, merge_sentences=merge_sentences)
-                phone_ids = input_ids["phone_ids"]
+            if am_name == "diffsinger":
+                text = ""
+                svs_input = sentence
             else:
-                print("lang should in {'zh', 'en'}!")
+                text = sentence
+                svs_input = None
+            frontend_dict = run_frontend(
+                frontend=frontend,
+                text=text,
+                merge_sentences=merge_sentences,
+                get_tone_ids=get_tone_ids,
+                lang=args.lang,
+                svs_input=svs_input)
+            phone_ids = frontend_dict['phone_ids']
             with paddle.no_grad():
                 flags = 0
                 for i in range(len(phone_ids)):
@@ -122,14 +131,14 @@ def evaluate(args):
                     # acoustic model
                     if am_name == 'fastspeech2':
                         # multi speaker
-                        if am_dataset in {"aishell3", "vctk"}:
+                        if am_dataset in {"aishell3", "vctk", "mix", "canton"}:
                             spk_id = paddle.to_tensor(args.spk_id)
                             mel = am_inference(part_phone_ids, spk_id)
                         else:
                             mel = am_inference(part_phone_ids)
                     elif am_name == 'speedyspeech':
-                        part_tone_ids = tone_ids[i]
-                        if am_dataset in {"aishell3", "vctk"}:
+                        part_tone_ids = frontend_dict['tone_ids'][i]
+                        if am_dataset in {"aishell3", "vctk", "mix"}:
                             spk_id = paddle.to_tensor(args.spk_id)
                             mel = am_inference(part_phone_ids, part_tone_ids,
                                                spk_id)
@@ -137,6 +146,15 @@ def evaluate(args):
                             mel = am_inference(part_phone_ids, part_tone_ids)
                     elif am_name == 'tacotron2':
                         mel = am_inference(part_phone_ids)
+                    elif am_name == 'diffsinger':
+                        part_note_ids = frontend_dict['note_ids'][i]
+                        part_note_durs = frontend_dict['note_durs'][i]
+                        part_is_slurs = frontend_dict['is_slurs'][i]
+                        mel = am_inference(
+                            text=part_phone_ids,
+                            note=part_note_ids,
+                            note_dur=part_note_durs,
+                            is_slur=part_is_slurs, )
                     # vocoder
                     wav = voc_inference(mel)
                     if flags == 0:
@@ -168,9 +186,20 @@ def parse_args():
         type=str,
         default='fastspeech2_csmsc',
         choices=[
-            'speedyspeech_csmsc', 'speedyspeech_aishell3', 'fastspeech2_csmsc',
-            'fastspeech2_ljspeech', 'fastspeech2_aishell3', 'fastspeech2_vctk',
-            'tacotron2_csmsc', 'tacotron2_ljspeech'
+            'speedyspeech_csmsc',
+            'speedyspeech_aishell3',
+            'fastspeech2_csmsc',
+            'fastspeech2_ljspeech',
+            'fastspeech2_aishell3',
+            'fastspeech2_vctk',
+            'tacotron2_csmsc',
+            'tacotron2_ljspeech',
+            'fastspeech2_mix',
+            'fastspeech2_canton',
+            'fastspeech2_male-zh',
+            'fastspeech2_male-en',
+            'fastspeech2_male-mix',
+            'diffsinger_opencpop',
         ],
         help='Choose acoustic model type of tts task.')
     parser.add_argument(
@@ -214,6 +243,10 @@ def parse_args():
             'hifigan_aishell3',
             'hifigan_vctk',
             'wavernn_csmsc',
+            'pwgan_male',
+            'hifigan_male',
+            'pwgan_opencpop',
+            'hifigan_opencpop',
         ],
         help='Choose vocoder type of tts task.')
     parser.add_argument(
@@ -231,7 +264,8 @@ def parse_args():
         '--lang',
         type=str,
         default='zh',
-        help='Choose model language. zh or en')
+        choices=['zh', 'en', 'mix', 'canton', 'sing'],
+        help='Choose model language. zh or en or mix')
 
     parser.add_argument(
         "--inference_dir",
@@ -245,6 +279,22 @@ def parse_args():
         type=str,
         help="text to synthesize, a 'utt_id sentence' pair per line.")
     parser.add_argument("--output_dir", type=str, help="output dir.")
+    parser.add_argument(
+        "--use_rhy",
+        type=str2bool,
+        default=False,
+        help="run rhythm frontend or not")
+    parser.add_argument(
+        "--pinyin_phone",
+        type=str,
+        default=None,
+        help="pinyin to phone map file, using on sing_frontend.")
+    parser.add_argument(
+        "--speech_stretchs",
+        type=str,
+        default=None,
+        help="The min and max values of the mel spectrum, using on diffusion of diffsinger."
+    )
 
     args = parser.parse_args()
     return args

@@ -1,6 +1,6 @@
 # Transformer/Conformer ASR with Librispeech ASR2
 
-This example contains code used to train a Transformer or [Conformer](http://arxiv.org/abs/2008.03802) model with [Librispeech dataset](http://www.openslr.org/resources/12) and use some functions in kaldi.
+This example contains code used to train a [u2](https://arxiv.org/pdf/2012.05481.pdf) model (Transformer or [Conformer](https://arxiv.org/pdf/2005.08100.pdf) model) with [Librispeech dataset](http://www.openslr.org/resources/12) and use some functions in kaldi.
 
 To use this example, you need to install Kaldi first.
 
@@ -153,7 +153,7 @@ After training the model, we need to get the final model for testing and inferen
 ```bash
  if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
      # avg n best model
-     avg.sh lastest exp/${ckpt}/checkpoints ${avg_num}
+     avg.sh latest exp/${ckpt}/checkpoints ${avg_num}
  fi
 ```
 The `avg.sh` is in the `../../../utils/` which is define in the `path.sh`.

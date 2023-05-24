@@ -54,8 +54,15 @@ def process_sentence(config: Dict[str, Any],
     record = None
     if utt_id in sentences:
         # reading, resampling may occur
-        wav, _ = librosa.load(str(fp), sr=config.fs)
-        if len(wav.shape) != 1:
+        wav, _ = librosa.load(
+            str(fp), sr=config.fs,
+            mono=False) if "canton" in str(fp) else librosa.load(
+                str(fp), sr=config.fs)
+        if len(wav.shape) == 2 and "canton" in str(fp):
+            # Remind that Cantonese datasets should be placed in ~/datasets/canton_all. Otherwise, it may cause problem.
+            wav = wav[0]
+            wav = np.ascontiguousarray(wav)
+        elif len(wav.shape) != 1:
             return record
         max_value = np.abs(wav).max()
         if max_value > 1.0:
@@ -102,6 +109,8 @@ def process_sentence(config: Dict[str, Any],
         np.save(mel_path, logmel)
         # extract pitch and energy
         f0 = pitch_extractor.get_pitch(wav, duration=np.array(durations))
+        if (f0 == 0).all():
+            return None
         assert f0.shape[0] == len(durations)
         f0_dir = output_dir / "data_pitch"
         f0_dir.mkdir(parents=True, exist_ok=True)
@@ -144,7 +153,8 @@ def process_sentences(config,
                       energy_extractor=None,
                       nprocs: int=1,
                       cut_sil: bool=True,
-                      spk_emb_dir: Path=None):
+                      spk_emb_dir: Path=None,
+                      write_metadata_method: str='w'):
     if nprocs == 1:
         results = []
         for fp in tqdm.tqdm(fps, total=len(fps)):
@@ -179,7 +189,8 @@ def process_sentences(config,
                         results.append(record)
 
     results.sort(key=itemgetter("utt_id"))
-    with jsonlines.open(output_dir / "metadata.jsonl", 'w') as writer:
+    with jsonlines.open(output_dir / "metadata.jsonl",
+                        write_metadata_method) as writer:
         for item in results:
             writer.write(item)
     print("Done")
@@ -223,6 +234,13 @@ def main():
         default=None,
         type=str,
         help="directory to speaker embedding files.")
+
+    parser.add_argument(
+        "--write_metadata_method",
+        default="w",
+        type=str,
+        choices=["w", "a"],
+        help="How the metadata.jsonl file is written.")
     args = parser.parse_args()
 
     rootdir = Path(args.rootdir).expanduser()
@@ -273,7 +291,20 @@ def main():
                 test_wav_files += wav_files[-sub_num_dev:]
             else:
                 train_wav_files += wav_files
-
+    elif args.dataset == "canton":
+        sub_num_dev = 5
+        wav_dir = rootdir / "WAV"
+        train_wav_files = []
+        dev_wav_files = []
+        test_wav_files = []
+        for speaker in os.listdir(wav_dir):
+            wav_files = sorted(list((wav_dir / speaker).rglob("*.wav")))
+            if len(wav_files) > 100:
+                train_wav_files += wav_files[:-sub_num_dev * 2]
+                dev_wav_files += wav_files[-sub_num_dev * 2:-sub_num_dev]
+                test_wav_files += wav_files[-sub_num_dev:]
+            else:
+                train_wav_files += wav_files
     elif args.dataset == "ljspeech":
         wav_files = sorted(list((rootdir / "wavs").rglob("*.wav")))
         # split data into 3 sections
@@ -340,7 +371,8 @@ def main():
             energy_extractor=energy_extractor,
             nprocs=args.num_cpu,
             cut_sil=args.cut_sil,
-            spk_emb_dir=spk_emb_dir)
+            spk_emb_dir=spk_emb_dir,
+            write_metadata_method=args.write_metadata_method)
     if dev_wav_files:
         process_sentences(
             config=config,
@@ -350,8 +382,10 @@ def main():
             mel_extractor=mel_extractor,
             pitch_extractor=pitch_extractor,
             energy_extractor=energy_extractor,
+            nprocs=args.num_cpu,
             cut_sil=args.cut_sil,
-            spk_emb_dir=spk_emb_dir)
+            spk_emb_dir=spk_emb_dir,
+            write_metadata_method=args.write_metadata_method)
     if test_wav_files:
         process_sentences(
             config=config,
@@ -363,7 +397,8 @@ def main():
             energy_extractor=energy_extractor,
             nprocs=args.num_cpu,
             cut_sil=args.cut_sil,
-            spk_emb_dir=spk_emb_dir)
+            spk_emb_dir=spk_emb_dir,
+            write_metadata_method=args.write_metadata_method)
 
 
 if __name__ == "__main__":

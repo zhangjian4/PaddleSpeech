@@ -58,10 +58,7 @@ fi
 # paddle2onnx non streaming
 if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
     # install paddle2onnx
-    version=$(echo `pip list |grep "paddle2onnx"` |awk -F" " '{print $2}')
-    if [[ -z "$version" || ${version} != '0.9.8' ]]; then
-        pip install paddle2onnx==0.9.8
-    fi
+    pip install paddle2onnx --upgrade
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx fastspeech2_csmsc
     # considering the balance between speed and quality, we recommend that you use hifigan as vocoder
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx pwgan_csmsc
@@ -75,13 +72,9 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
 fi
 
 # paddle2onnx streaming
-
 if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     # install paddle2onnx
-    version=$(echo `pip list |grep "paddle2onnx"` |awk -F" " '{print $2}')
-    if [[ -z "$version" || ${version} != '0.9.8' ]]; then
-        pip install paddle2onnx==0.9.8
-    fi
+    pip install paddle2onnx --upgrade
     # streaming acoustic model
     ./local/paddle2onnx.sh ${train_output_path} inference_streaming inference_onnx_streaming fastspeech2_csmsc_am_encoder_infer
     ./local/paddle2onnx.sh ${train_output_path} inference_streaming inference_onnx_streaming fastspeech2_csmsc_am_decoder
@@ -97,3 +90,34 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
     ./local/ort_predict_streaming.sh ${train_output_path}
 fi
 
+# must run after stage 3 (which stage generated static models)
+if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
+    ./local/export2lite.sh ${train_output_path} inference pdlite fastspeech2_csmsc x86
+    ./local/export2lite.sh ${train_output_path} inference pdlite pwgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference pdlite mb_melgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference pdlite hifigan_csmsc x86
+fi
+
+if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/lite_predict.sh ${train_output_path} || exit -1
+fi
+
+# must run after stage 5 (which stage generated static models)
+if [ ${stage} -le 13 ] && [ ${stop_stage} -ge 13 ]; then
+    # streaming acoustic model
+    ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming fastspeech2_csmsc_am_encoder_infer x86
+    ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming fastspeech2_csmsc_am_decoder x86
+    ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming fastspeech2_csmsc_am_postnet x86
+    ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming pwgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming mb_melgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference_streaming pdlite_streaming hifigan_csmsc x86
+fi
+
+if [ ${stage} -le 14 ] && [ ${stop_stage} -ge 14 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/lite_predict_streaming.sh ${train_output_path} || exit -1
+fi
+
+# PTQ_static
+if [ ${stage} -le 15 ] && [ ${stop_stage} -ge 15 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/PTQ_static.sh  ${train_output_path} fastspeech2_csmsc || exit -1
+fi

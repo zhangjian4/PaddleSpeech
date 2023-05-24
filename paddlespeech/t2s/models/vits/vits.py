@@ -13,6 +13,7 @@
 # limitations under the License.
 # Modified from espnet(https://github.com/espnet/espnet)
 """VITS module"""
+import math
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -27,7 +28,12 @@ from paddlespeech.t2s.models.hifigan import HiFiGANMultiScaleMultiPeriodDiscrimi
 from paddlespeech.t2s.models.hifigan import HiFiGANPeriodDiscriminator
 from paddlespeech.t2s.models.hifigan import HiFiGANScaleDiscriminator
 from paddlespeech.t2s.models.vits.generator import VITSGenerator
-from paddlespeech.t2s.modules.nets_utils import initialize
+from paddlespeech.utils.initialize import _calculate_fan_in_and_fan_out
+from paddlespeech.utils.initialize import kaiming_uniform_
+from paddlespeech.utils.initialize import normal_
+from paddlespeech.utils.initialize import ones_
+from paddlespeech.utils.initialize import uniform_
+from paddlespeech.utils.initialize import zeros_
 
 AVAILABLE_GENERATERS = {
     "vits_generator": VITSGenerator,
@@ -152,27 +158,31 @@ class VITS(nn.Layer):
                     "use_spectral_norm": False,
                 },
             },
-            cache_generator_outputs: bool=True,
-            init_type: str="xavier_uniform", ):
+            cache_generator_outputs: bool=True, ):
         """Initialize VITS module.
         Args:
-            idim (int): Input vocabrary size.
-            odim (int): Acoustic feature dimension. The actual output channels will
+            idim (int):
+                Input vocabrary size.
+            odim (int):
+                Acoustic feature dimension. The actual output channels will
                 be 1 since VITS is the end-to-end text-to-wave model but for the
                 compatibility odim is used to indicate the acoustic feature dimension.
-            sampling_rate (int): Sampling rate, not used for the training but it will
+            sampling_rate (int):
+                Sampling rate, not used for the training but it will
                 be referred in saving waveform during the inference.
-            generator_type (str): Generator type.
-            generator_params (Dict[str, Any]): Parameter dict for generator.
-            discriminator_type (str): Discriminator type.
-            discriminator_params (Dict[str, Any]): Parameter dict for discriminator.
-            cache_generator_outputs (bool): Whether to cache generator outputs.
+            generator_type (str):
+                Generator type.
+            generator_params (Dict[str, Any]):
+                Parameter dict for generator.
+            discriminator_type (str):
+                Discriminator type.
+            discriminator_params (Dict[str, Any]):
+                Parameter dict for discriminator.
+            cache_generator_outputs (bool):
+                Whether to cache generator outputs.
         """
         assert check_argument_types()
         super().__init__()
-
-        # initialize parameters
-        initialize(self, init_type)
 
         # define modules
         generator_class = AVAILABLE_GENERATERS[generator_type]
@@ -187,8 +197,6 @@ class VITS(nn.Layer):
         discriminator_class = AVAILABLE_DISCRIMINATORS[discriminator_type]
         self.discriminator = discriminator_class(
             **discriminator_params, )
-
-        nn.initializer.set_global_initializer(None)
 
         # cache
         self.cache_generator_outputs = cache_generator_outputs
@@ -206,6 +214,10 @@ class VITS(nn.Layer):
         self.reuse_cache_gen = True
         self.reuse_cache_dis = True
 
+        self.reset_parameters()
+        self.generator.decoder.reset_parameters()
+        self.generator.text_encoder.reset_parameters()
+
     def forward(
             self,
             text: paddle.Tensor,
@@ -218,16 +230,24 @@ class VITS(nn.Layer):
             forward_generator: bool=True, ) -> Dict[str, Any]:
         """Perform generator forward.
         Args:
-            text (Tensor): Text index tensor (B, T_text).
-            text_lengths (Tensor): Text length tensor (B,).
-            feats (Tensor): Feature tensor (B, T_feats, aux_channels).
-            feats_lengths (Tensor): Feature length tensor (B,).
-            sids (Optional[Tensor]): Speaker index tensor (B,) or (B, 1).
-            spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
-            lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
-            forward_generator (bool): Whether to forward generator.
+            text (Tensor):
+                Text index tensor (B, T_text).
+            text_lengths (Tensor):
+                Text length tensor (B,).
+            feats (Tensor):
+                Feature tensor (B, T_feats, aux_channels).
+            feats_lengths (Tensor):
+                Feature length tensor (B,).
+            sids (Optional[Tensor]):
+                Speaker index tensor (B,) or (B, 1).
+            spembs (Optional[Tensor]):
+                Speaker embedding tensor (B, spk_embed_dim).
+            lids (Optional[Tensor]):
+                Language index tensor (B,) or (B, 1).
+            forward_generator (bool):
+                    Whether to forward generator.
         Returns:
-        
+
         """
         if forward_generator:
             return self._forward_generator(
@@ -259,15 +279,22 @@ class VITS(nn.Layer):
             lids: Optional[paddle.Tensor]=None, ) -> Dict[str, Any]:
         """Perform generator forward.
         Args:
-            text (Tensor): Text index tensor (B, T_text).
-            text_lengths (Tensor): Text length tensor (B,).
-            feats (Tensor): Feature tensor (B, T_feats, aux_channels).
-            feats_lengths (Tensor): Feature length tensor (B,).
-            sids (Optional[Tensor]): Speaker index tensor (B,) or (B, 1).
-            spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
-            lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
+            text (Tensor):
+                Text index tensor (B, T_text).
+            text_lengths (Tensor):
+                Text length tensor (B,).
+            feats (Tensor):
+                Feature tensor (B, T_feats, aux_channels).
+            feats_lengths (Tensor):
+                Feature length tensor (B,).
+            sids (Optional[Tensor]):
+                Speaker index tensor (B,) or (B, 1).
+            spembs (Optional[Tensor]):
+                Speaker embedding tensor (B, spk_embed_dim).
+            lids (Optional[Tensor]):
+                Language index tensor (B,) or (B, 1).
         Returns:
-            
+
         """
         # setup
         feats = feats.transpose([0, 2, 1])
@@ -304,13 +331,20 @@ class VITS(nn.Layer):
             lids: Optional[paddle.Tensor]=None, ) -> Dict[str, Any]:
         """Perform discriminator forward.
         Args:
-            text (Tensor): Text index tensor (B, T_text).
-            text_lengths (Tensor): Text length tensor (B,).
-            feats (Tensor): Feature tensor (B, T_feats, aux_channels).
-            feats_lengths (Tensor): Feature length tensor (B,).
-            sids (Optional[Tensor]): Speaker index tensor (B,) or (B, 1).
-            spembs (Optional[Tensor]): Speaker embedding tensor (B, spk_embed_dim).
-            lids (Optional[Tensor]): Language index tensor (B,) or (B, 1).
+            text (Tensor):
+                Text index tensor (B, T_text).
+            text_lengths (Tensor):
+                Text length tensor (B,).
+            feats (Tensor):
+                Feature tensor (B, T_feats, aux_channels).
+            feats_lengths (Tensor):
+                Feature length tensor (B,).
+            sids (Optional[Tensor]):
+                Speaker index tensor (B,) or (B, 1).
+            spembs (Optional[Tensor]):
+                Speaker embedding tensor (B, spk_embed_dim).
+            lids (Optional[Tensor]):
+                Language index tensor (B,) or (B, 1).
         Returns:
 
         """
@@ -353,22 +387,36 @@ class VITS(nn.Layer):
             use_teacher_forcing: bool=False, ) -> Dict[str, paddle.Tensor]:
         """Run inference.
         Args:
-            text (Tensor): Input text index tensor (T_text,).
-            feats (Tensor): Feature tensor (T_feats, aux_channels).
-            sids (Tensor): Speaker index tensor (1,).
-            spembs (Optional[Tensor]): Speaker embedding tensor (spk_embed_dim,).
-            lids (Tensor): Language index tensor (1,).
-            durations (Tensor): Ground-truth duration tensor (T_text,).
-            noise_scale (float): Noise scale value for flow.
-            noise_scale_dur (float): Noise scale value for duration predictor.
-            alpha (float): Alpha parameter to control the speed of generated speech.
-            max_len (Optional[int]): Maximum length.
-            use_teacher_forcing (bool): Whether to use teacher forcing.
+            text (Tensor):
+                Input text index tensor (T_text,).
+            feats (Tensor):
+                Feature tensor (T_feats, aux_channels).
+            sids (Tensor):
+                Speaker index tensor (1,).
+            spembs (Optional[Tensor]):
+                Speaker embedding tensor (spk_embed_dim,).
+            lids (Tensor):
+                Language index tensor (1,).
+            durations (Tensor):
+                Ground-truth duration tensor (T_text,).
+            noise_scale (float):
+                Noise scale value for flow.
+            noise_scale_dur (float):
+                Noise scale value for duration predictor.
+            alpha (float):
+                Alpha parameter to control the speed of generated speech.
+            max_len (Optional[int]):
+                Maximum length.
+            use_teacher_forcing (bool):
+                Whether to use teacher forcing.
         Returns:
             Dict[str, Tensor]:
-                * wav (Tensor): Generated waveform tensor (T_wav,).
-                * att_w (Tensor): Monotonic attention weight tensor (T_feats, T_text).
-                * duration (Tensor): Predicted duration tensor (T_text,).
+                * wav (Tensor):
+                    Generated waveform tensor (T_wav,).
+                * att_w (Tensor):
+                    Monotonic attention weight tensor (T_feats, T_text).
+                * duration (Tensor):
+                    Predicted duration tensor (T_text,).
         """
         # setup
         text = text[None]
@@ -381,7 +429,7 @@ class VITS(nn.Layer):
         if use_teacher_forcing:
             assert feats is not None
             feats = feats[None].transpose([0, 2, 1])
-            feats_lengths = paddle.to_tensor([paddle.shape(feats)[2]])
+            feats_lengths = paddle.to_tensor(paddle.shape(feats)[2])
             wav, att_w, dur = self.generator.inference(
                 text=text,
                 text_lengths=text_lengths,
@@ -406,3 +454,92 @@ class VITS(nn.Layer):
                 max_len=max_len, )
         return dict(
             wav=paddle.reshape(wav, [-1]), att_w=att_w[0], duration=dur[0])
+
+    def voice_conversion(
+            self,
+            feats: paddle.Tensor,
+            sids_src: Optional[paddle.Tensor]=None,
+            sids_tgt: Optional[paddle.Tensor]=None,
+            spembs_src: Optional[paddle.Tensor]=None,
+            spembs_tgt: Optional[paddle.Tensor]=None,
+            lids: Optional[paddle.Tensor]=None, ) -> paddle.Tensor:
+        """Run voice conversion.
+        Args:
+            feats (Tensor):
+                Feature tensor (T_feats, aux_channels).
+            sids_src (Optional[Tensor]):
+                Speaker index tensor of source feature (1,).
+            sids_tgt (Optional[Tensor]):
+                Speaker index tensor of target feature (1,).
+            spembs_src (Optional[Tensor]):
+                Speaker embedding tensor of source feature (spk_embed_dim,).
+            spembs_tgt (Optional[Tensor]):
+                Speaker embedding tensor of target feature (spk_embed_dim,).
+            lids (Optional[Tensor]):
+                Language index tensor (1,).
+        Returns:
+            Dict[str, Tensor]:
+                * wav (Tensor):
+                    Generated waveform tensor (T_wav,).
+        """
+        assert feats is not None
+        feats = feats[None].transpose([0, 2, 1])
+        feats_lengths = paddle.to_tensor(paddle.shape(feats)[2])
+
+        sids_none = sids_src is None and sids_tgt is None
+        spembs_none = spembs_src is None and spembs_tgt is None
+
+        assert not sids_none or not spembs_none
+
+        wav = self.generator.voice_conversion(
+            feats,
+            feats_lengths,
+            sids_src,
+            sids_tgt,
+            spembs_src,
+            spembs_tgt,
+            lids, )
+
+        return dict(wav=paddle.reshape(wav, [-1]))
+
+    def reset_parameters(self):
+        def _reset_parameters(module):
+            if isinstance(module,
+                        (nn.Conv1D, nn.Conv1DTranspose, nn.Conv2D, nn.Conv2DTranspose)):
+                kaiming_uniform_(module.weight, a=math.sqrt(5))
+                if module.bias is not None:
+                    fan_in, _ = _calculate_fan_in_and_fan_out(module.weight)
+                    if fan_in != 0:
+                        bound = 1 / math.sqrt(fan_in)
+                        uniform_(module.bias, -bound, bound)
+
+            if isinstance(module,
+                          (nn.BatchNorm1D, nn.BatchNorm2D, nn.GroupNorm, nn.LayerNorm)):
+                ones_(module.weight)
+                zeros_(module.bias)
+
+            if isinstance(module, nn.Linear):
+                kaiming_uniform_(module.weight, a=math.sqrt(5))
+                if module.bias is not None:
+                    fan_in, _ = _calculate_fan_in_and_fan_out(module.weight)
+                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+                    uniform_(module.bias, -bound, bound)
+
+            if isinstance(module, nn.Embedding):
+                normal_(module.weight)
+                if module._padding_idx is not None:
+                    with paddle.no_grad():
+                        module.weight[module._padding_idx] = 0
+
+        self.apply(_reset_parameters)
+
+class VITSInference(nn.Layer):
+    def __init__(self, model):
+        super().__init__()
+        self.acoustic_model = model
+
+    def forward(self, text, sids=None):
+        out = self.acoustic_model.inference(
+            text, sids=sids)
+        wav = out['wav']
+        return wav

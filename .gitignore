@@ -15,6 +15,10 @@
 *.egg-info
 build
 *output/
+.history
+
+audio/dist/
+audio/fc_patch/
 
 docs/build/
 docs/topic/ctc/warp-ctc/
@@ -42,6 +46,7 @@ tools/python-soundfile/
 tools/onnx
 tools/onnxruntime
 tools/Paddle2ONNX
+tools/onnx-simplifier/
 
 speechx/fc_patch/
 

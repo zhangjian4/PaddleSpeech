@@ -67,10 +67,19 @@ class ASREngine(BaseEngine):
             logger.error(e)
             return False
 
+        cs = False
+
+        if self.config.lang == "zh_en" :
+            cs=True
+
         self.executor._init_from_path(
-            self.config.model, self.config.lang, self.config.sample_rate,
-            self.config.cfg_path, self.config.decode_method,
-            self.config.ckpt_path)
+            model_type=self.config.model,
+            lang=self.config.lang,
+            sample_rate=self.config.sample_rate,
+            cfg_path=self.config.cfg_path,
+            decode_method=self.config.decode_method,
+            ckpt_path=self.config.ckpt_path,
+            codeswitch=cs )
 
         logger.info("Initialize ASR server engine successfully on device: %s." %
                     (self.device))

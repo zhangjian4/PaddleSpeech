@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $# -lt 2 ] && [ $# -gt 3 ];then
+if [ $# -lt 2 ] || [ $# -gt 3 ];then
     echo "usage: CUDA_VISIBLE_DEVICES=0 ${0} config_path ckpt_name ips(optional)"
     exit -1
 fi
@@ -25,6 +25,10 @@ seed=10086
 if [ ${seed} != 0 ]; then
     export FLAGS_cudnn_deterministic=True
 fi
+
+# default memeory allocator strategy may case gpu training hang
+# for no OOM raised when memory exhaused
+export FLAGS_allocator_strategy=naive_best_fit
 
 if [ ${ngpu} == 0 ]; then
 python3 -u ${BIN_DIR}/train.py \

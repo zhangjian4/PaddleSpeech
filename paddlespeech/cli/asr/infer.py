@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import io
 import os
 import sys
 import time
@@ -51,7 +52,7 @@ class ASRExecutor(BaseExecutor):
         self.parser.add_argument(
             '--model',
             type=str,
-            default='conformer_wenetspeech',
+            default='conformer_u2pp_online_wenetspeech',
             choices=[
                 tag[:tag.index('-')]
                 for tag in self.task_resource.pretrained_models.keys()
@@ -61,8 +62,13 @@ class ASRExecutor(BaseExecutor):
             '--lang',
             type=str,
             default='zh',
-            help='Choose model language. zh or en, zh:[conformer_wenetspeech-zh-16k], en:[transformer_librispeech-en-16k]'
+            help='Choose model language. [zh, en, zh_en], zh:[conformer_wenetspeech-zh-16k], en:[transformer_librispeech-en-16k], zh_en:[conformer_talcs-codeswitch_zh_en-16k]'
         )
+        self.parser.add_argument(
+            '--codeswitch',
+            type=bool,
+            default=False,
+            help='Choose whether use code-switch. True or False.')
         self.parser.add_argument(
             "--sample_rate",
             type=int,
@@ -99,8 +105,9 @@ class ASRExecutor(BaseExecutor):
             '-y',
             action="store_true",
             default=False,
-            help='No additional parameters required. Once set this parameter, it means accepting the request of the program by default, which includes transforming the audio sample rate'
-        )
+            help='No additional parameters required. \
+            Once set this parameter, it means accepting the request of the program by default, \
+            which includes transforming the audio sample rate')
         self.parser.add_argument(
             '--rtf',
             action="store_true",
@@ -125,6 +132,7 @@ class ASRExecutor(BaseExecutor):
     def _init_from_path(self,
                         model_type: str='wenetspeech',
                         lang: str='zh',
+                        codeswitch: bool=False,
                         sample_rate: int=16000,
                         cfg_path: Optional[os.PathLike]=None,
                         decode_method: str='attention_rescoring',
@@ -142,7 +150,12 @@ class ASRExecutor(BaseExecutor):
 
         if cfg_path is None or ckpt_path is None:
             sample_rate_str = '16k' if sample_rate == 16000 else '8k'
-            tag = model_type + '-' + lang + '-' + sample_rate_str
+            if lang == "zh_en" and codeswitch is True:
+                tag = model_type + '-' + 'codeswitch_' + lang + '-' + sample_rate_str
+            elif lang == "zh_en" or codeswitch is True:
+                raise Exception("codeswitch is true only in zh_en model")
+            else:
+                tag = model_type + '-' + lang + '-' + sample_rate_str
             self.task_resource.set_task_model(tag, version=None)
             self.res_path = self.task_resource.res_dir
 
@@ -228,6 +241,8 @@ class ASRExecutor(BaseExecutor):
         audio_file = input
         if isinstance(audio_file, (str, os.PathLike)):
             logger.debug("Preprocess audio_file:" + audio_file)
+        elif isinstance(audio_file, io.BytesIO):
+            audio_file.seek(0)
 
         # Get the object for feature extraction
         if "deepspeech2" in model_type or "conformer" in model_type or "transformer" in model_type:
@@ -259,7 +274,7 @@ class ASRExecutor(BaseExecutor):
             # fbank
             audio = preprocessing(audio, **preprocess_args)
 
-            audio_len = paddle.to_tensor(audio.shape[0])
+            audio_len = paddle.to_tensor(audio.shape[0]).unsqueeze(axis=0)
             audio = paddle.to_tensor(audio, dtype='float32').unsqueeze(axis=0)
 
             self._inputs["audio"] = audio
@@ -340,7 +355,7 @@ class ASRExecutor(BaseExecutor):
         audio = np.round(audio).astype("int16")
         return audio
 
-    def _check(self, audio_file: str, sample_rate: int, force_yes: bool):
+    def _check(self, audio_file: str, sample_rate: int, force_yes: bool=False):
         self.sample_rate = sample_rate
         if self.sample_rate != 16000 and self.sample_rate != 8000:
             logger.error(
@@ -351,6 +366,8 @@ class ASRExecutor(BaseExecutor):
             if not os.path.isfile(audio_file):
                 logger.error("Please input the right audio file path")
                 return False
+        elif isinstance(audio_file, io.BytesIO):
+            audio_file.seek(0)
 
         logger.debug("checking the audio file format......")
         try:
@@ -365,7 +382,7 @@ class ASRExecutor(BaseExecutor):
         except Exception as e:
             logger.exception(e)
             logger.error(
-                "can not open the audio file, please check the audio file format is 'wav'. \n \
+                f"can not open the audio file, please check the audio file({audio_file}) format is 'wav'. \n \
                  you can try to use sox to change the file format.\n \
                  For example: \n \
                  sample rate: 16k \n \
@@ -417,6 +434,7 @@ class ASRExecutor(BaseExecutor):
 
         model = parser_args.model
         lang = parser_args.lang
+        codeswitch = parser_args.codeswitch
         sample_rate = parser_args.sample_rate
         config = parser_args.config
         ckpt_path = parser_args.ckpt_path
@@ -434,8 +452,18 @@ class ASRExecutor(BaseExecutor):
 
         for id_, input_ in task_source.items():
             try:
-                res = self(input_, model, lang, sample_rate, config, ckpt_path,
-                           decode_method, force_yes, rtf, device)
+                res = self(
+                    audio_file=input_,
+                    model=model,
+                    lang=lang,
+                    codeswitch=codeswitch,
+                    sample_rate=sample_rate,
+                    config=config,
+                    ckpt_path=ckpt_path,
+                    decode_method=decode_method,
+                    force_yes=force_yes,
+                    rtf=rtf,
+                    device=device)
                 task_results[id_] = res
             except Exception as e:
                 has_exceptions = True
@@ -455,8 +483,9 @@ class ASRExecutor(BaseExecutor):
     @stats_wrapper
     def __call__(self,
                  audio_file: os.PathLike,
-                 model: str='conformer_wenetspeech',
+                 model: str='conformer_u2pp_online_wenetspeech',
                  lang: str='zh',
+                 codeswitch: bool=False,
                  sample_rate: int=16000,
                  config: os.PathLike=None,
                  ckpt_path: os.PathLike=None,
@@ -470,8 +499,8 @@ class ASRExecutor(BaseExecutor):
         """
         audio_file = os.path.abspath(audio_file)
         paddle.set_device(device)
-        self._init_from_path(model, lang, sample_rate, config, decode_method,
-                             num_decoding_left_chunks, ckpt_path)
+        self._init_from_path(model, lang, codeswitch, sample_rate, config,
+                             decode_method, num_decoding_left_chunks, ckpt_path)
         if not self._check(audio_file, sample_rate, force_yes):
             sys.exit(-1)
         if rtf:

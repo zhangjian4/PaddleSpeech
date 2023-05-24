@@ -23,10 +23,9 @@ import jsonlines
 import numpy as np
 import paddle
 from paddle import distributed as dist
+from paddle.nn.utils import clip_grad_norm_
 
 from paddlespeech.s2t.frontend.featurizer import TextFeaturizer
-from paddlespeech.s2t.io.dataloader import BatchDataLoader
-from paddlespeech.s2t.io.dataloader import StreamDataLoader
 from paddlespeech.s2t.io.dataloader import DataLoaderFactory
 from paddlespeech.s2t.models.u2 import U2Model
 from paddlespeech.s2t.training.optimizer import OptimizerFactory
@@ -49,14 +48,16 @@ class U2Trainer(Trainer):
     def __init__(self, config, args):
         super().__init__(config, args)
 
-    def train_batch(self, batch_index, batch_data, msg):
+    def train_batch(self, batch_index, batch_data, scaler, msg):
         train_conf = self.config
         start = time.time()
 
         # forward
         utt, audio, audio_len, text, text_len = batch_data
-        loss, attention_loss, ctc_loss = self.model(audio, audio_len, text,
-                                                    text_len)
+        with paddle.amp.auto_cast(
+                level=self.amp_level, enable=True if scaler else False):
+            loss, attention_loss, ctc_loss = self.model(audio, audio_len, text,
+                                                        text_len)
 
         # loss div by `batch_size * accum_grad`
         loss /= train_conf.accum_grad
@@ -79,12 +80,26 @@ class U2Trainer(Trainer):
             # processes.
             context = nullcontext
         with context():
-            loss.backward()
+            if scaler:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
             layer_tools.print_grads(self.model, print_func=None)
 
         # optimizer step
         if (batch_index + 1) % train_conf.accum_grad == 0:
-            self.optimizer.step()
+            # do global grad clip
+            if train_conf.global_grad_clip != 0:
+                if scaler:
+                    scaler.unscale_(self.optimizer)
+                # need paddlepaddle==develop or paddlepaddle>=2.5
+                clip_grad_norm_(self.model.parameters(),
+                                train_conf.global_grad_clip)
+            if scaler:
+                scaler.step(self.optimizer)
+                scaler.update()
+            else:
+                self.optimizer.step()
             self.optimizer.clear_grad()
             self.lr_scheduler.step()
             self.iteration += 1
@@ -109,7 +124,8 @@ class U2Trainer(Trainer):
     def valid(self):
         self.model.eval()
         if not self.use_streamdata:
-            logger.info(f"Valid Total Examples: {len(self.valid_loader.dataset)}")
+            logger.info(
+                f"Valid Total Examples: {len(self.valid_loader.dataset)}")
         valid_losses = defaultdict(list)
         num_seen_utts = 1
         total_loss = 0.0
@@ -136,7 +152,8 @@ class U2Trainer(Trainer):
                 msg += "epoch: {}, ".format(self.epoch)
                 msg += "step: {}, ".format(self.iteration)
                 if not self.use_streamdata:
-                    msg += "batch: {}/{}, ".format(i + 1, len(self.valid_loader))
+                    msg += "batch: {}/{}, ".format(i + 1,
+                                                   len(self.valid_loader))
                 msg += ', '.join('{}: {:>.6f}'.format(k, v)
                                  for k, v in valid_dump.items())
                 logger.info(msg)
@@ -157,7 +174,8 @@ class U2Trainer(Trainer):
         self.before_train()
 
         if not self.use_streamdata:
-            logger.info(f"Train Total Examples: {len(self.train_loader.dataset)}")
+            logger.info(
+                f"Train Total Examples: {len(self.train_loader.dataset)}")
         while self.epoch < self.config.n_epoch:
             with Timer("Epoch-Train Time Cost: {}"):
                 self.model.train()
@@ -172,7 +190,8 @@ class U2Trainer(Trainer):
                             report("epoch", self.epoch)
                             report('step', self.iteration)
                             report("lr", self.lr_scheduler())
-                            self.train_batch(batch_index, batch, msg)
+                            self.train_batch(batch_index, batch, self.scaler,
+                                             msg)
                             self.after_train_batch()
                             report('iter', batch_index + 1)
                             if not self.use_streamdata:
@@ -225,14 +244,18 @@ class U2Trainer(Trainer):
         config = self.config.clone()
         self.use_streamdata = config.get("use_stream_data", False)
         if self.train:
-            self.train_loader = DataLoaderFactory.get_dataloader('train', config, self.args)
-            self.valid_loader = DataLoaderFactory.get_dataloader('valid', config, self.args)
+            self.train_loader = DataLoaderFactory.get_dataloader(
+                'train', config, self.args)
+            self.valid_loader = DataLoaderFactory.get_dataloader(
+                'valid', config, self.args)
             logger.info("Setup train/valid Dataloader!")
         else:
             decode_batch_size = config.get('decode', dict()).get(
                 'decode_batch_size', 1)
-            self.test_loader = DataLoaderFactory.get_dataloader('test', config, self.args)
-            self.align_loader = DataLoaderFactory.get_dataloader('align', config, self.args)
+            self.test_loader = DataLoaderFactory.get_dataloader('test', config,
+                                                                self.args)
+            self.align_loader = DataLoaderFactory.get_dataloader(
+                'align', config, self.args)
             logger.info("Setup test/align Dataloader!")
 
     def setup_model(self):
@@ -249,6 +272,18 @@ class U2Trainer(Trainer):
 
         model = U2Model.from_config(model_conf)
 
+        # For Mixed Precision Training
+        self.use_amp = self.config.get("use_amp", True)
+        self.amp_level = self.config.get("amp_level", "O1")
+        if self.train and self.use_amp:
+            self.scaler = paddle.amp.GradScaler(
+                init_loss_scaling=self.config.get(
+                    "scale_loss", 32768.0))  #amp default num 32768.0
+            #Set amp_level
+            if self.amp_level == 'O2':
+                model = paddle.amp.decorate(models=model, level=self.amp_level)
+        else:
+            self.scaler = None
         if self.parallel:
             model = paddle.DataParallel(model)
 
@@ -286,7 +321,6 @@ class U2Trainer(Trainer):
             scheduler_type = train_config.scheduler
             scheduler_conf = train_config.scheduler_conf
             return {
-                "grad_clip": train_config.global_grad_clip,
                 "weight_decay": optim_conf.weight_decay,
                 "learning_rate": lr_scheduler
                 if lr_scheduler else optim_conf.lr,
@@ -333,9 +367,11 @@ class U2Tester(U2Trainer):
         errors_sum, len_refs, num_ins = 0.0, 0, 0
         errors_func = error_rate.char_errors if decode_config.error_rate_type == 'cer' else error_rate.word_errors
         error_rate_func = error_rate.cer if decode_config.error_rate_type == 'cer' else error_rate.wer
+        reverse_weight = getattr(decode_config, 'reverse_weight', 0.0)
 
         start_time = time.time()
         target_transcripts = self.id2token(texts, texts_len, self.text_feature)
+
         result_transcripts, result_tokenids = self.model.decode(
             audio,
             audio_len,
@@ -345,7 +381,8 @@ class U2Tester(U2Trainer):
             ctc_weight=decode_config.ctc_weight,
             decoding_chunk_size=decode_config.decoding_chunk_size,
             num_decoding_left_chunks=decode_config.num_decoding_left_chunks,
-            simulate_streaming=decode_config.simulate_streaming)
+            simulate_streaming=decode_config.simulate_streaming,
+            reverse_weight=reverse_weight)
         decode_time = time.time() - start_time
 
         for utt, target, result, rec_tids in zip(
@@ -457,20 +494,120 @@ class U2Tester(U2Trainer):
         infer_model = U2InferModel.from_pretrained(self.test_loader,
                                                    self.config.clone(),
                                                    self.args.checkpoint_path)
+        batch_size = 1
         feat_dim = self.test_loader.feat_dim
-        input_spec = [
-            paddle.static.InputSpec(shape=[1, None, feat_dim],
-                                    dtype='float32'),  # audio, [B,T,D]
-            paddle.static.InputSpec(shape=[1],
-                                    dtype='int64'),  # audio_length, [B]
-        ]
-        return infer_model, input_spec
+        model_size = self.config.encoder_conf.output_size
+        num_left_chunks = -1
+        logger.info(
+            f"U2 Export Model Params: batch_size {batch_size}, feat_dim {feat_dim}, model_size {model_size}, num_left_chunks {num_left_chunks}"
+        )
+
+        return infer_model, (batch_size, feat_dim, model_size, num_left_chunks)
 
     @paddle.no_grad()
     def export(self):
         infer_model, input_spec = self.load_inferspec()
-        assert isinstance(input_spec, list), type(input_spec)
         infer_model.eval()
-        static_model = paddle.jit.to_static(infer_model, input_spec=input_spec)
-        logger.info(f"Export code: {static_model.forward.code}")
-        paddle.jit.save(static_model, self.args.export_path)
+        paddle.set_device('cpu')
+
+        assert isinstance(input_spec, (list, tuple)), type(input_spec)
+        batch_size, feat_dim, model_size, num_left_chunks = input_spec
+
+        ######################## infer_model.forward_encoder_chunk ############
+        input_spec = [
+            # (T,), int16
+            paddle.static.InputSpec(shape=[None], dtype='int16'),
+        ]
+        infer_model.forward_feature = paddle.jit.to_static(
+            infer_model.forward_feature, input_spec=input_spec)
+
+        ######################### infer_model.forward_encoder_chunk ############
+        input_spec = [
+            # xs, (B, T, D)
+            paddle.static.InputSpec(
+                shape=[batch_size, None, feat_dim], dtype='float32'),
+            # offset, int, but need be tensor
+            paddle.static.InputSpec(shape=[1], dtype='int32'),
+            # required_cache_size, int
+            num_left_chunks,
+            # att_cache
+            paddle.static.InputSpec(
+                shape=[None, None, None, None], dtype='float32'),
+            # cnn_cache
+            paddle.static.InputSpec(
+                shape=[None, None, None, None], dtype='float32')
+        ]
+        infer_model.forward_encoder_chunk = paddle.jit.to_static(
+            infer_model.forward_encoder_chunk, input_spec=input_spec)
+
+        ######################### infer_model.ctc_activation ########################
+        input_spec = [
+            # encoder_out, (B,T,D)
+            paddle.static.InputSpec(
+                shape=[batch_size, None, model_size], dtype='float32')
+        ]
+        infer_model.ctc_activation = paddle.jit.to_static(
+            infer_model.ctc_activation, input_spec=input_spec)
+
+        ######################### infer_model.forward_attention_decoder ########################
+        reverse_weight = 0.3
+        input_spec = [
+            # hyps, (B, U)
+            paddle.static.InputSpec(shape=[None, None], dtype='int64'),
+            # hyps_lens, (B,)
+            paddle.static.InputSpec(shape=[None], dtype='int64'),
+            # encoder_out, (B,T,D)
+            paddle.static.InputSpec(
+                shape=[batch_size, None, model_size], dtype='float32'),
+            reverse_weight
+        ]
+        infer_model.forward_attention_decoder = paddle.jit.to_static(
+            infer_model.forward_attention_decoder, input_spec=input_spec)
+
+        # jit save
+        logger.info(f"export save: {self.args.export_path}")
+        paddle.jit.save(
+            infer_model,
+            self.args.export_path,
+            combine_params=True,
+            skip_forward=True)
+
+        # test dy2static
+        def flatten(out):
+            if isinstance(out, paddle.Tensor):
+                return [out]
+
+            flatten_out = []
+            for var in out:
+                if isinstance(var, (list, tuple)):
+                    flatten_out.extend(flatten(var))
+                else:
+                    flatten_out.append(var)
+            return flatten_out
+
+        # forward_encoder_chunk dygraph
+        xs1 = paddle.full([1, 67, 80], 0.1, dtype='float32')
+        offset = paddle.to_tensor([0], dtype='int32')
+        required_cache_size = num_left_chunks
+        att_cache = paddle.zeros([0, 0, 0, 0])
+        cnn_cache = paddle.zeros([0, 0, 0, 0])
+        xs_d, att_cache_d, cnn_cache_d = infer_model.forward_encoder_chunk(
+            xs1, offset, required_cache_size, att_cache, cnn_cache)
+
+        # load static model
+        from paddle.jit.layer import Layer
+        layer = Layer()
+        logger.info(f"load export model: {self.args.export_path}")
+        layer.load(self.args.export_path, paddle.CPUPlace())
+
+        # forward_encoder_chunk static
+        xs1 = paddle.full([1, 67, 80], 0.1, dtype='float32')
+        offset = paddle.to_tensor([0], dtype='int32')
+        att_cache = paddle.zeros([0, 0, 0, 0])
+        cnn_cache = paddle.zeros([0, 0, 0, 0])
+        func = getattr(layer, 'forward_encoder_chunk')
+        xs_s, att_cache_s, cnn_cache_s = func(xs1, offset, att_cache, cnn_cache)
+        np.testing.assert_allclose(xs_d, xs_s, atol=1e-5)
+        np.testing.assert_allclose(att_cache_d, att_cache_s, atol=1e-4)
+        np.testing.assert_allclose(cnn_cache_d, cnn_cache_s, atol=1e-4)
+        # logger.info(f"forward_encoder_chunk output: {xs_s}")

@@ -22,7 +22,6 @@ import librosa
 import numpy as np
 import paddle
 import soundfile as sf
-from scipy.io import wavfile
 
 from paddlespeech.cli.log import logger
 from paddlespeech.cli.tts.infer import TTSExecutor
@@ -248,11 +247,13 @@ class TTSServerExecutor(TTSExecutor):
             else:
                 # multi speaker  do not have static model
                 if am_dataset in {"aishell3", "vctk"}:
-                    pass
+                    am_result = run_model(
+                        self.am_predictor,
+                        [part_phone_ids.numpy(), np.array([spk_id])])
                 else:
                     am_result = run_model(self.am_predictor,
                                           [part_phone_ids.numpy()])
-                    mel = am_result[0]
+                mel = am_result[0]
             self.am_time += (time.time() - am_st)
 
             # voc
@@ -409,7 +410,8 @@ class PaddleTTSConnectionHandler(TTSServerExecutor):
 
         # wav to base64
         buf = io.BytesIO()
-        wavfile.write(buf, target_fs, wav_speed)
+        sf.write(buf, wav_speed, target_fs, format="wav")
+        buf.seek(0)
         base64_bytes = base64.b64encode(buf.read())
         wav_base64 = base64_bytes.decode('utf-8')
         logger.debug("Audio to string successfully.")

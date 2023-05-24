@@ -9,7 +9,7 @@
 
 PaddleSpeech 的 TTS 模型具有以下映射关系：
 
-* tts0 - Tactron2
+* tts0 - Tacotron2
 * tts1 - TransformerTTS
 * tts2 - SpeedySpeech
 * tts3 - FastSpeech2
@@ -19,7 +19,7 @@ PaddleSpeech 的 TTS 模型具有以下映射关系：
 * voc3 - MultiBand MelGAN
 * voc4 - Style MelGAN
 * voc5 - HiFiGAN
-* vc0 - Tactron2 Voice Clone with GE2E
+* vc0 - Tacotron2 Voice Clone with GE2E
 * vc1 - FastSpeech2 Voice Clone with GE2E
 
 ## 快速开始
@@ -87,8 +87,8 @@ checkpoint_name
 ├── snapshot_iter_*.pdz
 ├── speech_stats.npy
 ├── phone_id_map.txt
-├── spk_id_map.txt (optimal)
-└── tone_id_map.txt (optimal)
+├── spk_id_map.txt (optional)
+└── tone_id_map.txt (optional)
 ```
 **Vocoders:**
 ```text

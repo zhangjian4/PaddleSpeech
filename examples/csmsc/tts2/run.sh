@@ -45,10 +45,7 @@ fi
 # we have only tested the following models so far
 if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     # install paddle2onnx
-    version=$(echo `pip list |grep "paddle2onnx"` |awk -F" " '{print $2}')
-    if [[ -z "$version" || ${version} != '0.9.8' ]]; then
-        pip install paddle2onnx==0.9.8
-    fi
+    pip install paddle2onnx --upgrade
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx speedyspeech_csmsc
     # considering the balance between speed and quality, we recommend that you use hifigan as vocoder
     ./local/paddle2onnx.sh ${train_output_path} inference inference_onnx pwgan_csmsc
@@ -59,4 +56,21 @@ fi
 # inference with onnxruntime
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     ./local/ort_predict.sh ${train_output_path}
+fi
+
+# must run after stage 3 (which stage generated static models)
+if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+    ./local/export2lite.sh ${train_output_path} inference pdlite speedyspeech_csmsc x86
+    ./local/export2lite.sh ${train_output_path} inference pdlite pwgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference pdlite mb_melgan_csmsc x86
+    # ./local/export2lite.sh ${train_output_path} inference pdlite hifigan_csmsc x86
+fi
+
+if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/lite_predict.sh ${train_output_path} || exit -1
+fi
+
+# PTQ_static
+if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
+    CUDA_VISIBLE_DEVICES=${gpus} ./local/PTQ_static.sh  ${train_output_path} speedyspeech_csmsc || exit -1
 fi
