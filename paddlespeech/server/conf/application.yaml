@@ -9,7 +9,7 @@ port: 8090
 # The task format in the engin_list is: <speech task>_<engine type>
 # task choices = ['asr_python', 'asr_inference', 'tts_python', 'tts_inference', 'cls_python', 'cls_inference']
 protocol: 'http'
-engine_list: ['asr_python', 'tts_python', 'cls_python', 'text_python', 'vector_python']
+engine_list: ['tts_python']
 
 
 #################################################################################
@@ -67,7 +67,7 @@ tts_python:
 
     # voc (vocoder) choices=['pwgan_csmsc', 'pwgan_ljspeech', 'pwgan_aishell3',
     #                        'pwgan_vctk', 'mb_melgan_csmsc']
-    voc: 'pwgan_csmsc'
+    voc: 'mb_melgan_csmsc'
     voc_config: 
     voc_ckpt: 
     voc_stat: 
